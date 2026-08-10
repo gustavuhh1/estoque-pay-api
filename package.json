@@ -1,0 +1,48 @@
+{
+  "name": "estoque-pay-api",
+  "version": "0.0.1",
+  "description": "Controle de acesso baseado em Roles (Administrador, Owner, Gestor, Caixa).",
+  "homepage": "https://github.com/gustavuhh1/estoque-pay-api#readme",
+  "bugs": {
+    "url": "https://github.com/gustavuhh1/estoque-pay-api/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gustavuhh1/estoque-pay-api.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/routes": "^6.0.3",
+    "@fastify/swagger": "^9.8.1",
+    "@fastify/swagger-ui": "^6.1.1",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.11.3",
+    "pg": "^8.23.0",
+    "present": "^1.0.0",
+    "scripts": "^0.1.0",
+    "tsx": "^4.23.12",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.21.0",
+    "prisma": "^7.9.1"
+  },
+  "allowScripts": {
+    "prisma@7.9.1": true,
+    "@prisma/engines@7.9.1": true,
+    "esbuild@0.28.2": true
+  }
+}
