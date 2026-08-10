@@ -5,3 +5,4 @@ node_modules
 .windsurf
 .agents
 .npm
+dist
