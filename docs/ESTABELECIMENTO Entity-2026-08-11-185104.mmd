@@ -1,0 +1,97 @@
+---
+config:
+  layout: elk
+  theme: forest
+---
+erDiagram
+    ESTABELECIMENTO ||--o{ USUARIO : has
+    ESTABELECIMENTO ||--o{ CLIENTE : has
+    ESTABELECIMENTO ||--o{ PRODUTO : has
+    ESTABELECIMENTO ||--o{ CATEGORIA : has
+    ESTABELECIMENTO ||--o{ TURNO_CAIXA : has
+    ESTABELECIMENTO ||--o{ VENDA : has
+    USUARIO ||--o{ TURNO_CAIXA : opens
+    USUARIO ||--o{ VENDA : operates
+    CLIENTE ||--o{ VENDA : makes
+    TURNO_CAIXA ||--o{ VENDA : contains
+    PRODUTO }o--o{ CATEGORIA : "belongs to many"
+    PRODUTO ||--o{ ITEM_VENDA : "sold in"
+    VENDA ||--o{ ITEM_VENDA : contains
+
+    VENDA {
+        string id PK
+        string estabelecimento_id FK
+        string usuario_id FK
+        string cliente_id FK
+        string turno_id FK
+        decimal total_venda
+        enum metodo_pagamento
+        enum status_pagamento
+        enum nfe_status
+        string nfe_url_pdf
+        string nfe_url_xml
+        string chave_de_acesso
+        datetime criada_em
+    }
+    ESTABELECIMENTO {
+        string id PK
+        string nome
+        string cnpj UK
+        string ie
+        string certificado_a1
+        enum plano
+        datetime criado_em
+    }
+    USUARIO {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+        string email UK
+        string google_id UK
+        enum role
+    }
+    CLIENTE {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+        string cpf UK
+        string telefone
+        datetime data_nascimento
+        string observacao
+        int pontos_fidelidade
+    }
+    PRODUTO {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+        string ean_gtin
+        enum tipo_medida
+        decimal preco_venda
+        decimal quantidade_atual
+        decimal quantidade_minima
+        string ncm
+        string cfop
+    }
+    CATEGORIA {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+    }
+    TURNO_CAIXA {
+        string id PK
+        string estabelecimento_id FK
+        string usuario_id FK
+        decimal valor_abertura
+        decimal valor_fechamento
+        enum status
+        datetime aberto_em
+        datetime fechado_em
+    }
+    ITEM_VENDA {
+        string id PK
+        string venda_id FK
+        string produto_id FK
+        decimal quantidade
+        decimal preco_unitario
+        decimal subtotal
+    }
