@@ -11,3 +11,189 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// Definição de tabela ->
+
+enum Plano {
+  FREE
+  PREMIUM
+}
+
+enum Role {
+  ADMINISTRADOR
+  DONO
+  GESTOR
+  CAIXA
+}
+
+enum TipoMedida {
+  UNIDADE
+  FRACIONADO_KG
+}
+
+enum StatusTurno {
+  ABERTO
+  FECHADO
+}
+
+enum MetodoPagamento {
+  PIX_ABACATEPAY
+  DINHEIRO
+  CARTAO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  CANCELADO
+}
+
+enum NfeStatus {
+  PROCESSANDO
+  AUTORIZADA
+  ERRO
+}
+
+// ================= MODELS (TABELAS) =================
+
+// Módulo: Configurações & IAM
+model Estabelecimento {
+  id             String   @id @default(uuid())
+  nome           String
+  cnpj           String   @unique
+  ie             String?  // Inscrição Estadual
+  certificado_a1 String?  // URL/Caminho do certificado
+  plano          Plano    @default(FREE)
+  criado_em      DateTime @default(now())
+
+  // Relacionamentos
+  usuarios    Usuario[]
+  clientes    Cliente[]
+  produtos    Produto[]
+  categorias  Categoria[]
+  turnos      TurnoCaixa[]
+  vendas      Venda[]
+
+  @@map("estabelecimentos")
+}
+
+model Usuario {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  nome               String
+  email              String          @unique
+  google_id          String?         @unique // Para SSO do Google
+  role               Role            @default(CAIXA)
+  
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  turnos             TurnoCaixa[]
+  vendas             Venda[]
+
+  @@map("usuarios")
+}
+
+// Módulo: CRM
+model Cliente {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  nome               String
+  cpf                String          @unique
+  telefone           String?
+  data_nascimento    DateTime?
+  observacao         String?
+  pontos_fidelidade  Int             @default(0)
+  
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  vendas             Venda[]
+
+  @@map("clientes")
+}
+
+// Módulo: Estoque
+model Produto {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  nome               String
+  ean_gtin           String? // Código de barras
+  tipo_medida        TipoMedida      @default(UNIDADE)
+  preco_venda        Decimal
+  quantidade_atual   Decimal // Aceita decimais para fracionados
+  quantidade_minima  Decimal         @default(0)
+  ncm                String?
+  cfop               String?
+
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  categorias         Categoria[]     // Relacionamento N:N implícito no Prisma
+  itens_venda        ItemVenda[]
+
+  @@map("produtos")
+}
+
+model Categoria {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  nome               String
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  produtos           Produto[]       // Relacionamento N:N implícito no Prisma
+
+  @@map("categorias")
+}
+
+// Módulo: PDV & Vendas
+model TurnoCaixa {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  usuario_id         String
+  valor_abertura     Decimal
+  valor_fechamento   Decimal?
+  status             StatusTurno     @default(ABERTO)
+  aberto_em          DateTime        @default(now())
+  fechado_em         DateTime?
+
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  usuario            Usuario         @relation(fields: [usuario_id], references: [id])
+  vendas             Venda[]
+
+  @@map("turnos_caixa")
+}
+
+model Venda {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  usuario_id         String // Operador de caixa
+  cliente_id         String? // Opcional (Cliente do CRM)
+  turno_id           String? // Opcional
+  total_venda        Decimal
+  metodo_pagamento   MetodoPagamento
+  status_pagamento   StatusPagamento @default(PENDENTE)
+  
+  // Emissão NFCe "Invisível"
+  nfe_status         NfeStatus?
+  nfe_url_pdf        String?
+  nfe_url_xml        String?
+  chave_de_acesso    String?
+  
+  criada_em          DateTime        @default(now())
+
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  usuario            Usuario         @relation(fields: [usuario_id], references: [id])
+  cliente            Cliente?        @relation(fields: [cliente_id], references: [id])
+  turno              TurnoCaixa?     @relation(fields: [turno_id], references: [id])
+  itens              ItemVenda[]
+
+  @@map("vendas")
+}
+
+model ItemVenda {
+  id             String   @id @default(uuid())
+  venda_id       String
+  produto_id     String
+  quantidade     Decimal
+  preco_unitario Decimal
+  subtotal       Decimal
+
+  venda          Venda    @relation(fields: [venda_id], references: [id])
+  produto        Produto  @relation(fields: [produto_id], references: [id])
+
+  @@map("itens_venda")
+}

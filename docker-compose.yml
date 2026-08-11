@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:latest
+    container_name: estoquepay-pg
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user123
+      POSTGRES_DB: estoque-db
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer
+    container_name: estoquepay-adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

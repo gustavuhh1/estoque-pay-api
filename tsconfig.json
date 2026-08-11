@@ -1,15 +1,10 @@
 {
   "compilerOptions": {
-    // "rootDir": "",
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
     "outDir": "./dist",
-    "module": "nodenext",
-    "target": "es2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "target": "ES2024",
     "types": [],
 
     // Other Outputs
@@ -21,14 +16,6 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
-
     // Recommended Options
     "strict": true,
     "jsx": "react-jsx",
@@ -36,6 +23,6 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
+    "skipLibCheck": true
   }
 }
