@@ -50,6 +50,22 @@ enum NfeStatus {
   ERRO
 }
 
+// Novos Enums para Auditoria de Estoque
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+}
+
+enum MotivoMovimentacao {
+  REABASTECIMENTO
+  VENDA
+  ESTORNO_VENDA
+  DESCARTE
+  PERDA
+  VENCIMENTO
+  AJUSTE_MANUAL
+}
+
 // ================= MODELS (TABELAS) =================
 
 // Módulo: Configurações & IAM
@@ -84,6 +100,7 @@ model Usuario {
   estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   turnos             TurnoCaixa[]
   vendas             Venda[]
+  movimentacoes      MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
 
   @@map("usuarios")
 }
@@ -112,15 +129,18 @@ model Produto {
   nome               String
   ean_gtin           String? // Código de barras
   tipo_medida        TipoMedida      @default(UNIDADE)
+  preco_custo        Decimal         // Para trava anti-prejuízo e inteligência financeira
   preco_venda        Decimal
   quantidade_atual   Decimal // Aceita decimais para fracionados
   quantidade_minima  Decimal         @default(0)
   ncm                String?
   cfop               String?
+  ativo              Boolean         @default(true) // Para inativação sem perder histórico
 
-  estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  categorias         Categoria[]     // Relacionamento N:N implícito no Prisma
+  estabelecimento    Estabelecimento       @relation(fields: [estabelecimento_id], references: [id])
+  categorias         Categoria[]           // Relacionamento N:N implícito no Prisma
   itens_venda        ItemVenda[]
+  movimentacoes      MovimentacaoEstoque[] // Histórico de auditoria do produto
 
   @@map("produtos")
 }
@@ -129,10 +149,27 @@ model Categoria {
   id                 String          @id @default(uuid())
   estabelecimento_id String
   nome               String
+
   estabelecimento    Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   produtos           Produto[]       // Relacionamento N:N implícito no Prisma
 
   @@map("categorias")
+}
+
+model MovimentacaoEstoque {
+  id             String             @id @default(uuid())
+  produto_id     String
+  usuario_id     String             // O responsável pela movimentação
+  quantidade     Decimal
+  tipo           TipoMovimentacao
+  motivo         MotivoMovimentacao
+  observacao     String?
+  criado_em      DateTime           @default(now())
+
+  produto        Produto            @relation(fields: [produto_id], references: [id])
+  usuario        Usuario            @relation(fields: [usuario_id], references: [id])
+
+  @@map("movimentacoes_estoque")
 }
 
 // Módulo: PDV & Vendas
