@@ -28,8 +28,8 @@
     "@fastify/swagger": "^9.8.1",
     "@fastify/swagger-ui": "^6.1.1",
     "@fastify/type-provider-zod": "^1.0.0",
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "better-auth": "^1.6.28",
     "fastify": "^5.11.3",
     "pg": "^8.23.0",
@@ -39,11 +39,11 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
-    "@types/pg": "^8.21.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "@vitest/ui": "^4.1.10",
     "dotenv": "^17.4.2",
-    "prisma": "^6.12.0",
+    "prisma": "7.9.1",
     "supertest": "^7.2.2",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
@@ -53,9 +53,9 @@
     "vitest-mock-extended": "^5.1.1"
   },
   "allowScripts": {
-    "prisma@7.9.1": true,
+    "@swc/core@1.16.0": true,
     "@prisma/engines@7.9.1": true,
-    "esbuild@0.28.2": true,
-    "@swc/core": false
+    "prisma@7.9.1": true,
+    "esbuild@0.28.2": true
   }
 }
