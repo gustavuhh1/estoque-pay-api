@@ -2,7 +2,7 @@
 
 ## 1. Requisitos Funcionais (RF)
 *O que o sistema deve fazer de ponta a ponta.*
-* **RF01 - Autenticação e Sessão SSO:** O sistema deve permitir que usuários façam login com o Google, mantenham uma sessão ativa e segura, e possam realizar o logout (encerrar a sessão).
+* **RF01 - Autenticação e Sessão Mista:** O sistema deve permitir que usuários façam login e criem contas utilizando E-mail e Senha de forma segura, bem como através da integração via SSO (Single Sign-On) com o Google. O sistema deve emitir tokens, manter uma sessão ativa e permitir o encerramento da mesma (logout).
 * **RF02 - Onboarding (Criação de Estabelecimento):** O sistema deve permitir que um novo usuário autenticado crie um estabelecimento do zero. O sistema deve automaticamente atribuir o cargo de "Owner" a este usuário criador.
 * **RF03 - Listagem e Contexto de Lojas:** O sistema deve listar todos os estabelecimentos aos quais o usuário tem acesso. O sistema deve permitir que o usuário selecione uma loja específica para "entrar" e operar o dashboard.
 * **RF04 - Gestão Completa de Funcionários:** O sistema deve permitir que o Owner ou Gestor gerencie a equipe da loja, incluindo:

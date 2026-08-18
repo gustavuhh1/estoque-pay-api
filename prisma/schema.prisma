@@ -15,10 +15,10 @@ enum Plano {
 }
 
 enum Role {
-  ADMINISTRADOR
-  DONO
-  GESTOR
-  CAIXA
+  ADMIN
+  OWNER
+  MANAGER
+  CASHIER
 }
 
 enum TipoMedida {
@@ -51,6 +51,7 @@ enum NfeStatus {
 }
 
 // Novos Enums para Auditoria de Estoque
+
 enum TipoMovimentacao {
   ENTRADA
   SAIDA
@@ -69,6 +70,7 @@ enum MotivoMovimentacao {
 // ================= MODELS (TABELAS) =================
 
 // Módulo: Configurações & IAM
+
 model Estabelecimento {
   id             String   @id @default(uuid())
   nome           String
@@ -79,33 +81,106 @@ model Estabelecimento {
   criado_em      DateTime @default(now())
 
   // Relacionamentos
-  usuarios   Usuario[]
   clientes   Cliente[]
   produtos   Produto[]
   categorias Categoria[]
   turnos     TurnoCaixa[]
   vendas     Venda[]
+  membros    MembroEstabelecimento[]
 
   @@map("estabelecimentos")
 }
 
-model Usuario {
-  id                 String  @id @default(uuid())
-  estabelecimento_id String
-  nome               String
-  email              String  @unique
-  google_id          String? @unique // Para SSO do Google
-  role               Role    @default(CAIXA)
+model User {
+  id            String    @id
+  name          String?
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
 
-  estabelecimento Estabelecimento       @relation(fields: [estabelecimento_id], references: [id])
-  turnos          TurnoCaixa[]
-  vendas          Venda[]
-  movimentacoes   MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
+  estabelecimentos MembroEstabelecimento[]
 
-  @@map("usuarios")
+  turnos        TurnoCaixa[]
+  vendas        Venda[]
+  movimentacoes MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
+
+  @@unique([email])
+  @@map("user")
+}
+
+model MembroEstabelecimento {
+  id                String @id @default(uuid())
+  userId            String
+  estabelecimentoId String
+
+  role      Role      @default(CASHIER) // O cargo fica aqui!
+  updatedAt DateTime? @updatedAt
+  createdAt DateTime? @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  estabelecimento Estabelecimento @relation(fields: [estabelecimentoId], references: [id], onDelete: Cascade)
+
+  // Garante que a mesma pessoa não seja vinculada duas vezes à mesma loja
+  @@unique([userId, estabelecimentoId])
+  @@index([userId])
+  @@index([estabelecimentoId])
+  @@map("membros_estabelecimento")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }
 
 // Módulo: CRM
+
 model Cliente {
   id                 String    @id @default(uuid())
   estabelecimento_id String
@@ -123,6 +198,7 @@ model Cliente {
 }
 
 // Módulo: Estoque
+
 model Produto {
   id                 String     @id @default(uuid())
   estabelecimento_id String
@@ -167,12 +243,13 @@ model MovimentacaoEstoque {
   criado_em  DateTime           @default(now())
 
   produto Produto @relation(fields: [produto_id], references: [id])
-  usuario Usuario @relation(fields: [usuario_id], references: [id])
+  users   User    @relation(fields: [usuario_id], references: [id])
 
   @@map("movimentacoes_estoque")
 }
 
 // Módulo: PDV & Vendas
+
 model TurnoCaixa {
   id                 String      @id @default(uuid())
   estabelecimento_id String
@@ -184,7 +261,7 @@ model TurnoCaixa {
   fechado_em         DateTime?
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  usuario         Usuario         @relation(fields: [usuario_id], references: [id])
+  users           User            @relation(fields: [usuario_id], references: [id])
   vendas          Venda[]
 
   @@map("turnos_caixa")
@@ -209,7 +286,7 @@ model Venda {
   criada_em DateTime @default(now())
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  usuario         Usuario         @relation(fields: [usuario_id], references: [id])
+  users           User            @relation(fields: [usuario_id], references: [id])
   cliente         Cliente?        @relation(fields: [cliente_id], references: [id])
   turno           TurnoCaixa?     @relation(fields: [turno_id], references: [id])
   itens           ItemVenda[]

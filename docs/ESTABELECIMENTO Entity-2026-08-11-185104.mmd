@@ -4,35 +4,25 @@ config:
   theme: forest
 ---
 erDiagram
-    ESTABELECIMENTO ||--o{ USUARIO : has
+    ESTABELECIMENTO ||--o{ MEMBRO_ESTABELECIMENTO : has
+    USER ||--o{ MEMBRO_ESTABELECIMENTO : is_member
     ESTABELECIMENTO ||--o{ CLIENTE : has
     ESTABELECIMENTO ||--o{ PRODUTO : has
     ESTABELECIMENTO ||--o{ CATEGORIA : has
     ESTABELECIMENTO ||--o{ TURNO_CAIXA : has
     ESTABELECIMENTO ||--o{ VENDA : has
-    USUARIO ||--o{ TURNO_CAIXA : opens
-    USUARIO ||--o{ VENDA : operates
+    USER ||--o{ SESSION : has
+    USER ||--o{ ACCOUNT : has
+    USER ||--o{ TURNO_CAIXA : opens
+    USER ||--o{ VENDA : operates
+    USER ||--o{ MOVIMENTACAO_ESTOQUE : makes
+    PRODUTO ||--o{ MOVIMENTACAO_ESTOQUE : has
     CLIENTE ||--o{ VENDA : makes
     TURNO_CAIXA ||--o{ VENDA : contains
-    PRODUTO }o--o{ CATEGORIA : "belongs to many"
-    PRODUTO ||--o{ ITEM_VENDA : "sold in"
+    PRODUTO }o--o{ CATEGORIA : belongs_to_many
+    PRODUTO ||--o{ ITEM_VENDA : sold_in
     VENDA ||--o{ ITEM_VENDA : contains
 
-    VENDA {
-        string id PK
-        string estabelecimento_id FK
-        string usuario_id FK
-        string cliente_id FK
-        string turno_id FK
-        decimal total_venda
-        enum metodo_pagamento
-        enum status_pagamento
-        enum nfe_status
-        string nfe_url_pdf
-        string nfe_url_xml
-        string chave_de_acesso
-        datetime criada_em
-    }
     ESTABELECIMENTO {
         string id PK
         string nome
@@ -42,13 +32,54 @@ erDiagram
         enum plano
         datetime criado_em
     }
-    USUARIO {
+    USER {
         string id PK
-        string estabelecimento_id FK
-        string nome
+        string name
         string email UK
-        string google_id UK
+        boolean emailVerified
+        string image
+        datetime createdAt
+        datetime updatedAt
+    }
+    MEMBRO_ESTABELECIMENTO {
+        string id PK
+        string userId FK
+        string estabelecimentoId FK
         enum role
+        datetime adicionado_em
+    }
+    SESSION {
+        string id PK
+        datetime expiresAt
+        string token UK
+        datetime createdAt
+        datetime updatedAt
+        string ipAddress
+        string userAgent
+        string userId FK
+    }
+    ACCOUNT {
+        string id PK
+        string accountId
+        string providerId
+        string userId FK
+        string accessToken
+        string refreshToken
+        string idToken
+        datetime accessTokenExpiresAt
+        datetime refreshTokenExpiresAt
+        string scope
+        string password
+        datetime createdAt
+        datetime updatedAt
+    }
+    VERIFICATION {
+        string id PK
+        string identifier
+        string value
+        datetime expiresAt
+        datetime createdAt
+        datetime updatedAt
     }
     CLIENTE {
         string id PK
@@ -66,16 +97,28 @@ erDiagram
         string nome
         string ean_gtin
         enum tipo_medida
+        decimal preco_custo
         decimal preco_venda
         decimal quantidade_atual
         decimal quantidade_minima
         string ncm
         string cfop
+        boolean ativo
     }
     CATEGORIA {
         string id PK
         string estabelecimento_id FK
         string nome
+    }
+    MOVIMENTACAO_ESTOQUE {
+        string id PK
+        string produto_id FK
+        string usuario_id FK
+        decimal quantidade
+        enum tipo
+        enum motivo
+        string observacao
+        datetime criado_em
     }
     TURNO_CAIXA {
         string id PK
@@ -86,6 +129,21 @@ erDiagram
         enum status
         datetime aberto_em
         datetime fechado_em
+    }
+    VENDA {
+        string id PK
+        string estabelecimento_id FK
+        string usuario_id FK
+        string cliente_id FK
+        string turno_id FK
+        decimal total_venda
+        enum metodo_pagamento
+        enum status_pagamento
+        enum nfe_status
+        string nfe_url_pdf
+        string nfe_url_xml
+        string chave_de_acesso
+        datetime criada_em
     }
     ITEM_VENDA {
         string id PK

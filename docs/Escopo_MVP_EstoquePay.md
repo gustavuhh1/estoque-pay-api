@@ -22,7 +22,7 @@ A plataforma visa solucionar a falta de controle integrado entre estoque e pagam
 
 | Domínio (Módulo) | Escopo Principal (O Chão - MVP) | Limites (O Teto - Fora do MVP) |
 | :--- | :--- | :--- |
-| **Autenticação (IAM)** | Login e autorização com controle de acesso baseado em Roles (Administrador, Owner, Gestor, Caixa). SSO Login com apenas Google. | Autenticação em 2 Fatores (2FA), SSO com Facebook/Apple. |
+| **Autenticação (IAM)** | Login e cadastro híbrido, com suporte a E-mail/Senha convencionais e SSO (Login nativo com Google). Controle de acesso baseado em Roles (Admin, Owner, Gestor, Caixa) gerido por vínculo multi-loja. | Autenticação em 2 Fatores (2FA), Magic Links, ou integração com outros provedores sociais (Apple, Facebook). |
 | **Estoque** | CRUD de produtos, alertas de quantidade mínima, histórico de movimentação. | Previsão de demanda com IA, integração automatizada com fornecedores. |
 | **CRM (Controle de Clientes)** | Cadastro, listagem e atualização de dados (CPF, Nome, Telefone, Observação, Data de Nascimento). Indexação dos clientes às compras realizadas. Uso de inteligência de dados (Cálculo de produtos favoritos) e programa de fidelidade (Cupons). | Campanhas de marketing automatizadas multiplataforma. |
 | **PDV** | Iniciar compra, pesquisar produtos, processar carrinho, sumário de compras, cálculo de troco e Abertura/Fechamento de caixa (Opcional, restrito a Owner/Gestor). | Campanhas promocionais automatizadas no caixa. |
