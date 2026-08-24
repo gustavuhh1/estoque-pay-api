@@ -1,6 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
-import swc from 'unplugin-swc';
 
 export default defineConfig({
   test: {
@@ -13,10 +11,7 @@ export default defineConfig({
       "@prisma/*": "./generated/prisma/*"
     }
   },
-  plugins: [
-    tsconfigPaths(),
-    swc.vite({
-      module: { type: 'es6' },
-    }),
-  ],
+  resolve: {
+    tsconfigPaths: true,
+  }
 });
