@@ -212,8 +212,8 @@ model Produto {
   preco_venda        Decimal
   quantidade_atual   Decimal // Aceita decimais para fracionados
   quantidade_minima  Decimal    @default(0)
-  ncm                String?
-  cfop               String?
+  ncm                String? // Nomenclatura Comum do Mercosul
+  cfop               String? // Código Fiscal de Operações e Prestações
   ativo              Boolean    @default(true) // Para inativação sem perder histórico
 
   estabelecimento Estabelecimento       @relation(fields: [estabelecimento_id], references: [id])
