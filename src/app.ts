@@ -3,13 +3,15 @@ import cors from "@fastify/cors"
 import fastifyRoutes from "@fastify/routes"
 import fastifySwagger from "@fastify/swagger"
 import fastifySwaggerUi from "@fastify/swagger-ui"
+import { toNodeHandler } from "better-auth/node"
 
-import { errorHandler } from "./shared/middlewares/error-handler.js"
-import { authRoutes } from "./modules/auth/routes.js"
-import { crmRoutes } from "./modules/crm/routes.js"
-import { estoqueRoutes } from "./modules/estoque/routes.js"
-import { pdvRoutes } from "./modules/pdv/routes.js"
-import { nfceRoutes } from "./modules/nfce/routes.js"
+import { errorHandler } from "./shared/middlewares/error-handler"
+import routes from "./routes"
+import { auth } from "./lib/auth"
+import {
+  serializerCompiler,
+  validatorCompiler
+} from "@fastify/type-provider-zod"
 
 export const app = fastify({
   logger: false,
@@ -21,7 +23,14 @@ app.register(cors, {
   origin: true,
 })
 
+app.setValidatorCompiler(validatorCompiler)
+app.setSerializerCompiler(serializerCompiler)
+
 app.register(fastifyRoutes)
+app.all("/api/auth/*", async (request, reply) => {
+  const nodeHandler = toNodeHandler(auth)
+  await nodeHandler(request as any, reply as any)
+})
 
 app.register(fastifySwagger, {
   openapi: {
@@ -44,15 +53,11 @@ app.register(fastifySwagger, {
 })
 
 app.register(fastifySwaggerUi, {
-  routePrefix: "/documentation",
+  routePrefix: "/apidocs",
 })
 
-// Registro das rotas dos módulos (Domínios)
-app.register(authRoutes, { prefix: "/auth" })
-app.register(crmRoutes, { prefix: "/crm" })
-app.register(estoqueRoutes, { prefix: "/estoque" })
-app.register(pdvRoutes, { prefix: "/pdv" })
-app.register(nfceRoutes, { prefix: "/nfce" })
+// Registro das rotas centralizadas
+app.register(routes)
 
 app.get("/", function (request, reply) {
   reply.send({ status: "ok", message: "EstoquePay API running" })
