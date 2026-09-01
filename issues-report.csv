@@ -1,0 +1,35 @@
+Repository,Issue Number,Title,Status,Created,Updated,Labels,Assigned To,URL
+estoque-pay-api,61,[RF04.1 RF04.2 e RNF01] Webhook de Retorno Armazenamento e Tolerância a Falhas,OPEN,5 days ago,5 days ago,"fase-04, modulo: nfce, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/61
+estoque-pay-api,60,[RF03.1 RN02 e RN03] Disparo Assíncrono da NFC-e (Invisível) e CPF Opcional,OPEN,5 days ago,5 days ago,"fase-04, modulo: nfce, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/60
+estoque-pay-api,59,[RN01 e RN01.1] Pre-check e Ativação do Switch Fiscal (Premium),OPEN,5 days ago,5 days ago,"fase-04, modulo: nfce, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/59
+estoque-pay-api,58,[RF02.1 a RF02.3] Histórico de Compras Inteligência e Fidelidade,OPEN,5 days ago,5 days ago,"fase-04, modulo: crm, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/58
+estoque-pay-api,57,[RF01.1 a RF01.4] Gestão de Clientes (CRUD Completo),OPEN,5 days ago,5 days ago,"fase-04, modulo: crm, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/57
+estoque-pay-api,54,[RF06.1 RF06.2 e RN04] Abertura e Fechamento de Caixa,OPEN,5 days ago,5 days ago,"fase-03, modulo: pdv, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/54
+estoque-pay-api,53,[RF05.1 RF05.2 e RN02] Cancelamento de Venda e Devolução ao Estoque,OPEN,5 days ago,5 days ago,"fase-03, modulo: pdv, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/53
+estoque-pay-api,52,[RF03.1 a RF04.1 e RNF02] Pix Automático (AbacatePay) e Split,OPEN,5 days ago,5 days ago,"fase-03, modulo: pagamentos, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/52
+estoque-pay-api,51,[RF02.1 RF02.2 e RNF01] Pagamento Manual (Dinheiro e Cartão),OPEN,5 days ago,5 days ago,"fase-03, modulo: pagamentos, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/51
+estoque-pay-api,50,[RF01.1 a RF01.3 e RN01] Busca Carrinho e Cálculo Automático,OPEN,5 days ago,5 days ago,"fase-03, modulo: pdv, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/50
+estoque-pay-api,49,[RF16.1 e RF17.2] Identificação e Listagem de Alertas de Estoque Mínimo,OPEN,5 days ago,5 days ago,"fase-02, modulo: auditoria, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/49
+estoque-pay-api,48,[RF15.4 e RN05] Relatório de Auditoria e Rastreabilidade,OPEN,5 days ago,5 days ago,"fase-02, modulo: auditoria, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/48
+estoque-pay-api,47,[RF12.1 a RF14.3] Ajuste Manual Frações e Obrigatoriedade de Motivo,OPEN,5 days ago,5 days ago,"fase-02, modulo: auditoria, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/47
+estoque-pay-api,46,[RF07.1 a RF11.5] CRUD de Categorias e Vínculos N:N,OPEN,5 days ago,5 days ago,"fase-02, modulo: categorias, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/46
+estoque-pay-api,45,[RF05.5 e RF06.6] Soft Delete e Trava Fiscal de Reativação (RN09.2),OPEN,5 days ago,5 days ago,"fase-02, modulo: produtos, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/45
+estoque-pay-api,44,[RF02.2 a RF04.4] Listar Editar e Exclusão Permanente de Produto,OPEN,5 days ago,5 days ago,"fase-02, modulo: produtos, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/44
+estoque-pay-api,43,[RF01.1] Criar Produto e Validação Fiscal (RN09.1),OPEN,5 days ago,5 days ago,"fase-02, modulo: produtos, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/43
+estoque-pay-api,42,[RF05.3 RF05.4] Edição e Exclusão de Funcionários,OPEN,5 days ago,5 days ago,"fase-01, modulo: equipe, BE",gustavuhh1,https://github.com/gustavuhh1/estoque-pay-api/issues/42
+estoque-pay-api,41,[RF05.1 RF05.2] Cadastro e Listagem de Funcionários,OPEN,5 days ago,5 days ago,"fase-01, modulo: equipe, BE",gustavuhh1,https://github.com/gustavuhh1/estoque-pay-api/issues/41
+estoque-pay-api,40,[RF03.1 a RF04.2] Listagem Contexto e Dados da Loja,OPEN,5 days ago,5 days ago,"fase-01, modulo: tenant, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/40
+estoque-pay-api,39,[RF02.1 RF02.2] Onboarding e Cargo Automático,OPEN,5 days ago,5 days ago,"fase-01, modulo: tenant, BE",,https://github.com/gustavuhh1/estoque-pay-api/issues/39
+estoque-pay-api,38,[RF01.6 RF01.7] Gestão de Sessão e Logout,OPEN,5 days ago,4 days ago,"fase-01, modulo: auth, BE",gustavuhh1,https://github.com/gustavuhh1/estoque-pay-api/issues/38
+estoque-pay-api,37,[RF01.4 RF01.5] Recuperação e Redefinição de Senha,OPEN,5 days ago,4 days ago,"fase-01, modulo: auth, BE",gustavuhh1,https://github.com/gustavuhh1/estoque-pay-api/issues/37
+estoque-pay-api,36,[RF01.3] Autenticação SSO (Google),OPEN,5 days ago,4 days ago,"fase-01, modulo: auth, BE",gustavuhh1,https://github.com/gustavuhh1/estoque-pay-api/issues/36
+estoque-pay-front,10,[FE-ADM; RF08.1] Tela de Dados Cadastrais da Loja,OPEN,5 days ago,5 days ago,"FE, Admin",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/10
+estoque-pay-front,9,[FE-CORE; RF/RNF não vinculado] Fundação de Front-end (Design System Layout Base e Estados Padrão),OPEN,5 days ago,5 days ago,"FE, Infra",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/9
+estoque-pay-front,8,[FE-ADM] CRUD de Funcionários (Listagem Cadastro Edição e Exclusão),OPEN,5 days ago,5 days ago,"FE, Admin",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/8
+estoque-pay-front,7,[FE-ADM; RF04.1 ao RF04.07] Tela de Listagem de Funcionários,OPEN,5 days ago,5 days ago,"FE, Gestor, Onboarding",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/7
+estoque-pay-front,6,[FE-CORE; RF03.1 RF03.2] Componente de Troca de Contexto (Store Switcher),OPEN,5 days ago,5 days ago,"Auth, FE, Onboarding",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/6
+estoque-pay-front,5,[FE-CLI; RF03.1] Tela de Seleção/Listagem de Lojas,OPEN,5 days ago,5 days ago,"Auth, FE, Cliente",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/5
+estoque-pay-front,4,[FE-CLI; RF02.1 RF02.2] Tela de Onboarding — Criação de Estabelecimento,OPEN,5 days ago,5 days ago,"Auth, FE, Cliente",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/4
+estoque-pay-front,3,[FE-CORE; RF01.4 RF01.5] Fluxo de Recuperação de Senha,OPEN,5 days ago,5 days ago,"Auth, FE, Cliente",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/3
+estoque-pay-front,2,[FE-CORE; RF01.3] Gerenciamento de Sessão (Token/Logout),OPEN,5 days ago,5 days ago,"Auth, FE, Cliente",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/2
+estoque-pay-front,1,[FE-CORE; RF01.1 RF01.2] Tela de Login e Cadastro (E-mail/Senha + SSO Google Sign-up),OPEN,5 days ago,5 days ago,"Auth, FE, Cliente",Chas3xW4yne,https://github.com/gustavuhh1/estoque-pay-front/issues/1
