@@ -9,9 +9,16 @@ datasource db {
 
 // ================= ENUMS =================
 
-enum Plano {
-  FREE
-  PREMIUM
+enum StatusAssinatura {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum TipoPlano {
+  MENSAL
+  ANUAL
 }
 
 enum Role {
@@ -72,23 +79,49 @@ enum MotivoMovimentacao {
 // Módulo: Configurações & IAM
 
 model Estabelecimento {
-  id             String   @id @default(uuid())
-  nome           String
-  cnpj           String   @unique
-  ie             String? // Inscrição Estadual
-  certificado_a1 String? // URL/Caminho do certificado
-  plano          Plano    @default(FREE)
-  criado_em      DateTime @default(now())
+  id                   String   @id @default(uuid())
+  nome                 String
+  cnpj                 String   @unique
+  ie                   String? // Inscrição Estadual
+  certificado_a1       String? // URL/Caminho do certificado
+  certificado_a1_senha String? // Sempre criptografado na aplicação, nunca em texto puro
+  emite_nfce           Boolean  @default(false) // Switch fiscal: dita a obrigatoriedade de NCM/CFOP
+  criado_em            DateTime @default(now())
+
+  // O plano NÃO é coluna: é derivado de assinatura.status para não haver duas
+  // fontes de verdade. PREMIUM apenas em TRIALING/ACTIVE; sem assinatura,
+  // PAST_DUE ou CANCELED valem os limites do plano Free (RN03 Fase 5).
 
   // Relacionamentos
-  clientes   Cliente[]
-  produtos   Produto[]
-  categorias Categoria[]
-  turnos     TurnoCaixa[]
-  vendas     Venda[]
-  membros    MembroEstabelecimento[]
+  clientes      Cliente[]
+  produtos      Produto[]
+  categorias    Categoria[]
+  turnos        TurnoCaixa[]
+  vendas        Venda[]
+  membros       MembroEstabelecimento[]
+  movimentacoes MovimentacaoEstoque[]
+  cupons        Cupom[]
+  assinatura    Assinatura?
 
   @@map("estabelecimentos")
+}
+
+model Assinatura {
+  id                     String           @id @default(uuid())
+  estabelecimento_id     String           @unique
+  abacatepay_sub_id      String?          @unique
+  abacatepay_customer_id String?
+  metodo_pagamento_id    String? // Referência tokenizada no AbacatePay (RN04) - nunca dados do cartão
+  status                 StatusAssinatura @default(TRIALING)
+  tipo_plano             TipoPlano        @default(MENSAL)
+  trial_expira_em        DateTime?
+  periodo_atual_fim      DateTime?
+  criado_em              DateTime         @default(now())
+  atualizado_em          DateTime         @default(now()) @updatedAt
+
+  estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id], onDelete: Cascade)
+
+  @@map("assinaturas")
 }
 
 model User {
@@ -104,9 +137,10 @@ model User {
 
   estabelecimentos MembroEstabelecimento[]
 
-  turnos        TurnoCaixa[]
-  vendas        Venda[]
-  movimentacoes MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
+  turnos            TurnoCaixa[]
+  vendas            Venda[]               @relation("VendasOperador")
+  vendas_canceladas Venda[]               @relation("VendasCanceladas")
+  movimentacoes     MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
 
   @@unique([email])
   @@map("user")
@@ -188,16 +222,41 @@ model Cliente {
   id                 String    @id @default(uuid())
   estabelecimento_id String
   nome               String
-  cpf                String    @unique
+  cpf                String
   telefone           String?
   data_nascimento    DateTime?
   observacao         String?
   pontos_fidelidade  Int       @default(0)
+  criado_em          DateTime  @default(now())
+  atualizado_em      DateTime  @default(now()) @updatedAt
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   vendas          Venda[]
+  cupons          Cupom[]
 
+  // CPF é único por loja, não global: o mesmo cliente pode existir em tenants diferentes
+  @@unique([estabelecimento_id, cpf])
   @@map("clientes")
+}
+
+model Cupom {
+  id                 String    @id @default(uuid())
+  estabelecimento_id String
+  cliente_id         String? // null = cupom genérico da loja, não nominal
+  codigo             String
+  valor_desconto     Decimal   @db.Decimal(10, 2)
+  expira_em          DateTime?
+  resgatado_em       DateTime?
+  venda_id           String?   @unique // Em qual venda o cupom foi consumido
+  criado_em          DateTime  @default(now())
+
+  estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  cliente         Cliente?        @relation(fields: [cliente_id], references: [id])
+  venda           Venda?          @relation(fields: [venda_id], references: [id])
+
+  @@unique([estabelecimento_id, codigo])
+  @@index([cliente_id])
+  @@map("cupons")
 }
 
 // Módulo: Estoque
@@ -208,46 +267,60 @@ model Produto {
   nome               String
   ean_gtin           String? // Código de barras
   tipo_medida        TipoMedida @default(UNIDADE)
-  preco_custo        Decimal // Para trava anti-prejuízo e inteligência financeira
-  preco_venda        Decimal
-  quantidade_atual   Decimal // Aceita decimais para fracionados
-  quantidade_minima  Decimal    @default(0)
+  preco_custo        Decimal    @db.Decimal(10, 2) // Para trava anti-prejuízo e inteligência financeira
+  preco_venda        Decimal    @db.Decimal(10, 2)
+  quantidade_atual   Decimal    @db.Decimal(10, 3) // Aceita decimais para fracionados
+  quantidade_minima  Decimal    @default(0) @db.Decimal(10, 3)
   ncm                String? // Nomenclatura Comum do Mercosul
   cfop               String? // Código Fiscal de Operações e Prestações
   ativo              Boolean    @default(true) // Para inativação sem perder histórico
+  criado_em          DateTime   @default(now())
+  atualizado_em      DateTime   @default(now()) @updatedAt
 
   estabelecimento Estabelecimento       @relation(fields: [estabelecimento_id], references: [id])
   categorias      Categoria[] // Relacionamento N:N implícito no Prisma
   itens_venda     ItemVenda[]
   movimentacoes   MovimentacaoEstoque[] // Histórico de auditoria do produto
 
+  // NULLs não colidem em unique no Postgres: vários produtos sem código de barras são permitidos
+  @@unique([estabelecimento_id, ean_gtin])
+  @@index([estabelecimento_id, ativo])
   @@map("produtos")
 }
 
 model Categoria {
-  id                 String @id @default(uuid())
+  id                 String   @id @default(uuid())
   estabelecimento_id String
   nome               String
+  criado_em          DateTime @default(now())
+  atualizado_em      DateTime @default(now()) @updatedAt
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   produtos        Produto[] // Relacionamento N:N implícito no Prisma
 
+  // O unique composto já indexa estabelecimento_id como coluna líder
+  @@unique([estabelecimento_id, nome])
   @@map("categorias")
 }
 
 model MovimentacaoEstoque {
-  id         String             @id @default(uuid())
-  produto_id String
-  usuario_id String // O responsável pela movimentação
-  quantidade Decimal
-  tipo       TipoMovimentacao
-  motivo     MotivoMovimentacao
-  observacao String?
-  criado_em  DateTime           @default(now())
+  id                 String             @id @default(uuid())
+  estabelecimento_id String // Permite ao tenantGuard validar a linha sem join em Produto
+  produto_id         String
+  usuario_id         String // O responsável pela movimentação
+  quantidade         Decimal            @db.Decimal(10, 3)
+  tipo               TipoMovimentacao
+  motivo             MotivoMovimentacao
+  observacao         String?
+  criado_em          DateTime           @default(now())
 
-  produto Produto @relation(fields: [produto_id], references: [id])
-  users   User    @relation(fields: [usuario_id], references: [id])
+  estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
+  produto         Produto         @relation(fields: [produto_id], references: [id])
+  users           User            @relation(fields: [usuario_id], references: [id])
 
+  @@index([estabelecimento_id, criado_em])
+  @@index([produto_id])
+  @@index([usuario_id])
   @@map("movimentacoes_estoque")
 }
 
@@ -257,8 +330,8 @@ model TurnoCaixa {
   id                 String      @id @default(uuid())
   estabelecimento_id String
   usuario_id         String
-  valor_abertura     Decimal
-  valor_fechamento   Decimal?
+  valor_abertura     Decimal     @db.Decimal(10, 2)
+  valor_fechamento   Decimal?    @db.Decimal(10, 2)
   status             StatusTurno @default(ABERTO)
   aberto_em          DateTime    @default(now())
   fechado_em         DateTime?
@@ -267,6 +340,8 @@ model TurnoCaixa {
   users           User            @relation(fields: [usuario_id], references: [id])
   vendas          Venda[]
 
+  @@index([estabelecimento_id, status])
+  @@index([usuario_id])
   @@map("turnos_caixa")
 }
 
@@ -276,24 +351,45 @@ model Venda {
   usuario_id         String // Operador de caixa
   cliente_id         String? // Opcional (Cliente do CRM)
   turno_id           String? // Opcional
-  total_venda        Decimal
+  total_venda        Decimal         @db.Decimal(10, 2)
   metodo_pagamento   MetodoPagamento
   status_pagamento   StatusPagamento @default(PENDENTE)
 
-  // Emissão NFCe "Invisível"
-  nfe_status      NfeStatus?
-  nfe_url_pdf     String?
-  nfe_url_xml     String?
-  chave_de_acesso String?
+  // Integração AbacatePay
+  abacatepay_payment_id String?   @unique // Correlaciona o webhook à venda
+  taxa_split            Decimal?  @db.Decimal(10, 2) // Taxa fixa retida pela plataforma
+  pago_em               DateTime?
 
-  criada_em DateTime @default(now())
+  // Emissão NFCe "Invisível"
+  nfe_status        NfeStatus?
+  nfe_url_pdf       String?
+  nfe_url_xml       String?
+  chave_de_acesso   String?
+  nfe_erro_mensagem String?
+  nfe_tentativas    Int        @default(0)
+  nfe_enviada_em    DateTime?
+
+  // Trilha de cancelamento
+  cancelada_em     DateTime?
+  cancelada_por_id String?
+
+  criada_em     DateTime @default(now())
+  atualizada_em DateTime @default(now()) @updatedAt
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  users           User            @relation(fields: [usuario_id], references: [id])
+  users           User            @relation("VendasOperador", fields: [usuario_id], references: [id])
+  cancelada_por   User?           @relation("VendasCanceladas", fields: [cancelada_por_id], references: [id])
   cliente         Cliente?        @relation(fields: [cliente_id], references: [id])
   turno           TurnoCaixa?     @relation(fields: [turno_id], references: [id])
   itens           ItemVenda[]
+  cupom           Cupom?
 
+  @@index([estabelecimento_id, criada_em])
+  @@index([estabelecimento_id, status_pagamento])
+  @@index([cliente_id])
+  @@index([turno_id])
+  @@index([usuario_id])
+  @@index([cancelada_por_id])
   @@map("vendas")
 }
 
@@ -301,12 +397,14 @@ model ItemVenda {
   id             String  @id @default(uuid())
   venda_id       String
   produto_id     String
-  quantidade     Decimal
-  preco_unitario Decimal
-  subtotal       Decimal
+  quantidade     Decimal @db.Decimal(10, 3)
+  preco_unitario Decimal @db.Decimal(10, 2)
+  subtotal       Decimal @db.Decimal(10, 2)
 
   venda   Venda   @relation(fields: [venda_id], references: [id])
   produto Produto @relation(fields: [produto_id], references: [id])
 
+  @@index([venda_id])
+  @@index([produto_id])
   @@map("itens_venda")
 }
