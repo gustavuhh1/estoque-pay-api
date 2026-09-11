@@ -25,6 +25,19 @@
 - **RF01.5 - Gestão de Sessão:** O sistema deve emitir tokens de autenticação válidos e manter a sessão do usuário ativa nas requisições.
 - **RF01.6 - Realizar Logout:** O sistema deve permitir o encerramento da sessão ativa, invalidando imediatamente o token de acesso do usuário.
 
+### Glossário de Cargos (Roles)
+
+O schema (`enum Role`) é a fonte da verdade e usa nomes em inglês. Este documento usa os termos de negócio em português; a equivalência é fixa:
+
+| Termo de negócio | Valor no schema |
+| --- | --- |
+| Administrador (plataforma) | `ADMIN` |
+| Owner (dono da loja) | `OWNER` |
+| Gestor | `MANAGER` |
+| Caixa | `CASHIER` |
+
+O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecimento.role`, então a mesma pessoa pode ser `OWNER` numa loja e `CASHIER` em outra.
+
 ### 2. Requisitos Funcionais (RFs) — Módulo: Lojas e Multi-Tenant (RBAC por Vínculo)
 
 *O que o sistema deve fazer em relação à gestão de estabelecimentos e permissões dinâmicas.*
@@ -39,7 +52,7 @@
 
 *O que o sistema deve fazer em relação à equipe e permissões (RBAC).*
 
-- **RF05.1 - Cadastrar Funcionário:** O sistema deve permitir que o Owner ou Gestor adicione um funcionário ao estabelecimento informando nome, e-mail e cargo (Role).
+- **RF05.1 - Cadastrar Funcionário:** O sistema deve permitir que o `OWNER` ou `MANAGER` adicione um funcionário ao estabelecimento informando nome, e-mail e cargo (Role).
 - **RF05.2 - Listar Funcionários:** O sistema deve permitir a visualização em lista de todos os funcionários vinculados à loja ativa e seus respectivos papéis.
 - **RF05.3 - Editar Cargo (Role):** O sistema deve permitir alterar o cargo de um funcionário dentro do estabelecimento.
 - **RF05.4 - Excluir Funcionário:** O sistema deve permitir remover o vínculo (desvincular) de um funcionário ao estabelecimento.
@@ -47,9 +60,9 @@
 ### 4. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 1
 
 - **RN01 (Vínculo Silencioso):** O vínculo do funcionário ocorre de forma silenciosa via banco de dados sem envio de e-mails de convite, validando-se pelo login subsequente na plataforma.
-- **RN02 (Hierarquia):** Um Gestor não pode excluir, editar ou rebaixar um Owner; apenas o Owner detém privilégios hierárquicos completos.
-- **RN03 (Loja Órfã):** É proibido excluir ou rebaixar o último Owner de uma loja, garantindo que o estabelecimento nunca fique sem um dono.
-- **RN04/05 (Limites de Roles):** O cargo de "Caixa" possui acesso estrito ao PDV. O "Gestor" possui acesso à operação e equipe, mas é bloqueado em ações críticas (CNPJ, Certificado A1, Plano Premium e exclusão da loja).
+- **RN02 (Hierarquia):** Um Gestor (`MANAGER`) não pode excluir, editar ou rebaixar um Owner (`OWNER`); apenas o `OWNER` detém privilégios hierárquicos completos.
+- **RN03 (Loja Órfã):** É proibido excluir ou rebaixar o último `OWNER` de uma loja, garantindo que o estabelecimento nunca fique sem um dono.
+- **RN04/05 (Limites de Roles):** O cargo de Caixa (`CASHIER`) possui acesso estrito ao PDV. O Gestor (`MANAGER`) possui acesso à operação e equipe, mas é bloqueado em ações críticas (CNPJ, Certificado A1, Plano Premium e exclusão da loja).
 - **RN06 (Revogação de Token):** Ao remover um funcionário do estabelecimento, se o mesmo possuir sessão ativa, suas requisições futuras devem ser rejeitadas instantaneamente via middleware.
 
 ---
@@ -124,9 +137,9 @@
 ### 4. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 3
 
 - **RN01 - Baixa Postergada:** Produtos no carrinho não deduzem estoque. A baixa ocorre estritamente no momento em que a venda é consolidada e paga.
-- **RN02 - Segurança de Cancelamento:** O cancelamento de vendas concluídas é autorizado unicamente a usuários com cargos de Owner ou Gestor (bloqueado para Caixa).
+- **RN02 - Segurança de Cancelamento:** O cancelamento de vendas concluídas é autorizado unicamente a usuários com cargo `OWNER` ou `MANAGER` (bloqueado para `CASHIER`). O autor e a data ficam registrados em `Venda.cancelada_por_id` / `Venda.cancelada_em`.
 - **RN03 - Auditoria de Devolução:** O cancelamento gera um registro automatizado de entrada na tabela `MovimentacaoEstoque` com o motivo "Estorno/Cancelamento de Venda".
-- **RN04 - Segurança de Turno:** Abertura e fechamento de caixa são estritamente restritos aos cargos Owner ou Gestor.
+- **RN04 - Segurança de Turno:** Abertura e fechamento de caixa são estritamente restritos aos cargos `OWNER` ou `MANAGER`. A unicidade do turno aberto é garantida no banco por índice parcial (um turno `ABERTO` por operador em cada loja), não apenas por validação de serviço.
 - **RNF01 - Integridade Transacional:** O fechamento da venda e a dedução do estoque ocorrem em transação atômica única no Prisma (`$transaction`). Se houver falha, a venda é desfeita.
 - **RNF02 - Segurança de Webhooks:** A rota de webhook do AbacatePay valida assinatura criptográfica para bloquear requisições falsas.
 
@@ -142,7 +155,7 @@
 - **RF01.4 - Atualizar Cliente:** Permitir a edição dos dados cadastrais do cliente.
 - **RF02.1 - Vincular Histórico de Compras:** Indexar automaticamente as compras do PDV ao perfil do cliente.
 - **RF02.2 - Inteligência de Dados:** Calcular estatísticas de consumo e produtos favoritos do cliente.
-- **RF02.3 - Programa de Fidelidade:** Suportar emissão e resgate de cupons de fidelidade atrelados ao cliente.
+- **RF02.3 - Programa de Fidelidade:** Suportar emissão e resgate de cupons de fidelidade atrelados ao cliente. Modelado em `Cupom`: código único por loja, valor de desconto, validade opcional (`expira_em`), e baixa no resgate via `resgatado_em` + `venda_id` (que é único, então um cupom só pode ser consumido em uma venda). `cliente_id` nulo representa cupom genérico da loja, não nominal.
 
 ### 2. Requisitos Funcionais (RFs) — Módulo: Emissão NFC-e (Fiscal)
 
@@ -171,7 +184,8 @@
 
 ### 2. Regras de Negócio (RN) — Fase 5
 
-- **RN01 - Limites Estritos do Plano Free:** Lojas no plano Free possuem travas operacionais rígidas: limite máximo de 50 produtos cadastrados ativos, máximo de 3 membros na equipe (contando obrigatoriamente o Owner), CRM restrito exclusivamente aos campos de CPF e Nome, e emissão de NFC-e totalmente desativada.
+- **RN00 - Plano Derivado (fonte única da verdade):** O plano não é uma coluna do `Estabelecimento`. Ele é **derivado** de `Assinatura.status`: vale PREMIUM apenas em `TRIALING` ou `ACTIVE`; loja sem assinatura, ou com status `PAST_DUE`/`CANCELED`, é tratada sob os limites do Free. Isso evita que um campo `plano` e o status da assinatura divirjam durante inadimplência.
+- **RN01 - Limites Estritos do Plano Free:** Lojas no plano Free possuem travas operacionais rígidas: limite máximo de 50 produtos cadastrados ativos, máximo de 3 membros na equipe (contando obrigatoriamente o `OWNER`), CRM restrito exclusivamente aos campos de CPF e Nome, e emissão de NFC-e totalmente desativada.
 - **RN02 - Manutenção de Taxa Pix no PDV:** O plano Premium não isenta a loja da taxa fixa de R$ 0,80 por transação Pix realizada no PDV, mantendo o modelo de split padrão.
 - **RN03 - Comportamento em Downgrade / Inadimplência (Opção B):** Se a assinatura expirar ou o pagamento falhar, a loja não perde o acesso ao painel, mas entra em modo restrito: a NFC-e é desligada imediatamente, e o sistema bloqueia o cadastro de *novos* produtos ou funcionários caso a contagem atual ultrapasse os limites do plano Free.
 - **RN04 - Exigência de Pagamento no Trial:** É proibido ativar os 7 dias gratuitos de teste sem que o AbacatePay confirme o registro de um meio de pagamento válido vinculado ao cliente.
