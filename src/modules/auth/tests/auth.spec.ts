@@ -1,114 +1,126 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import { AuthService } from "../service/AuthService"
-import { InMemoryAuthRepository } from "../repository/InMemoryAuthRepository"
-import { auth } from "@/lib/auth"
+import { AuthPrismaRepository } from "../repository/AuthPrismaRepository"
+import { prisma } from "@/lib/prisma"
 
-vi.mock("@/lib/auth", () => ({
-  auth: {
-    api: {
-      signUpEmail: vi.fn(),
-      signInEmail: vi.fn(),
-    },
-  },
-}))
-
-describe("Auth Module - Unit Tests (DDD)", () => {
-  let authRepository: InMemoryAuthRepository
+describe("Auth Module - Integration Tests (DB)", () => {
+  let authRepository: AuthPrismaRepository
   let sut: AuthService
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    authRepository = new InMemoryAuthRepository()
-
-    // Injeção de dependências limpa (usando mock do better-auth global)
+    authRepository = new AuthPrismaRepository(prisma)
     sut = new AuthService(authRepository)
   })
 
   it("Deve cadastrar um usuário com sucesso", async () => {
-    ;(auth.api.signUpEmail as any).mockResolvedValue({
-      user: { id: "123", email: "usuario@email.com" },
-    })
-
     const response = await sut.signUp({
       email: "usuario@email.com",
       name: "usuario",
       password: "senha123",
     })
 
-    expect(auth.api.signUpEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          email: "usuario@email.com",
-          password: "senha123",
-          name: "usuario",
-          image: undefined,
-        }),
-      }),
-    )
     expect(response.message).toBe("Usuário criado com sucesso")
     expect(response.user.id).toBeDefined()
-  })
+    expect(response.user.email).toBe("usuario@email.com")
 
-  it("Deve realizar login com sucesso", async () => {
-    authRepository.users.push({
-      id: "123",
-      email: "usuario@email.com",
-      emailVerified: false,
-      name: "usuario",
-      image: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as any)
-    ;(auth.api.signInEmail as any).mockResolvedValue({
-      user: { id: "123", email: "usuario@email.com" },
+    const userInDb = await prisma.user.findUnique({
+      where: { email: "usuario@email.com" },
     })
-    const response = await sut.signIn({
-      email: "usuario@email.com",
-      password: "senha123",
-    })
+    expect(userInDb).not.toBeNull()
 
-    expect(auth.api.signInEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          email: "usuario@email.com",
-          password: "senha123",
-        }),
-      }),
-    )
-    expect(response.message).toBe("Login realizado com sucesso")
-    expect(response.user.id).toBe("123")
+    console.log("Usuário cadastrado com sucesso:", response.user)
   })
 
   it("Deve lançar erro ao tentar cadastrar usuário já existente", async () => {
-    authRepository.users.push({
-      id: "123",
-      email: "usuario@email.com",
-      emailVerified: false,
+    // Cadastro inicial
+    await sut.signUp({
+      email: "existente@email.com",
       name: "usuario",
-      image: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as any)
+      password: "senha123",
+    })
 
-    await expect(
-      sut.signUp({
-        email: "usuario@email.com",
+    // Tentativa de duplicidade
+    const error = await sut
+      .signUp({
+        email: "existente@email.com",
         password: "outrasenha",
         name: "usuario",
-      }),
-    ).rejects.toThrow("Usuário já cadastrado")
+      })
+      .catch((err) => err)
 
-    expect(auth.api.signUpEmail).not.toHaveBeenCalled()
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe("Usuário já cadastrado")
+
+    console.log("Erro esperado ao duplicar cadastro:", error.message)
+  })
+
+  it("Deve realizar login com sucesso", async () => {
+    await sut.signUp({
+      email: "login@email.com",
+      name: "usuario",
+      password: "senha123",
+    })
+
+    const response = await sut.signIn({
+      email: "login@email.com",
+      password: "senha123",
+    })
+
+    expect(response.message).toBe("Login realizado com sucesso")
+    expect(response.user.id).toBeDefined()
+
+    console.log("Login realizado com sucesso:", response.user)
   })
 
   it("Deve lançar erro ao tentar logar com usuário inexistente", async () => {
-    await expect(
-      sut.signIn({
+    const error = await sut
+      .signIn({
         email: "nao_existe@email.com",
         password: "senha123",
-      }),
-    ).rejects.toThrow("Credenciais inválidas")
+      })
+      .catch((err) => err)
 
-    expect(auth.api.signInEmail).not.toHaveBeenCalled()
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe("Credenciais inválidas")
+
+    console.log("Erro esperado ao logar com usuário inexistente:", error.message)
+  })
+
+  it("Deve ser possivel gerar token e redefinir senha", async () => {
+    // 1. Cria usuário
+    const user = await sut.signUp({
+      email: "reset@email.com",
+      name: "usuario",
+      password: "senha123",
+    })
+    console.log("1. Usuário criado para o teste de reset:", user.user)
+
+    // 2. Solicita reset
+    const response = await sut.requestResetPassword("reset@email.com")
+    expect(response.status).toBe(true)
+    console.log("2. Solicitação de reset de senha:", response)
+
+    // Note: O Better Auth salva o token no banco com hash por segurança.
+    // Para testar o fluxo, vamos extrair o token (plain-text) que foi enviado para o email (mock do resend).
+    const sendMock = (await import("@/lib/resend")).resend.emails.send as any
+    const emailArgs = sendMock.mock.calls[0][0]
+
+    // O HTML contém: "Seu token é: XYZ"
+    const match = emailArgs.html.match(/Seu token é: ([a-zA-Z0-9_\-]+)/)
+    const token = match[1]
+    console.log("3. Token extraído do e-mail enviado:", token)
+
+    // 3. Reseta a senha
+    const resetResponse = await sut.resetPassword(token, "novaSenha123")
+    expect(resetResponse.status).toBe(true)
+    console.log("4. Resultado da redefinição de senha:", resetResponse)
+
+    // 4. Valida se a senha mudou logando
+    const loginResponse = await sut.signIn({
+      email: "reset@email.com",
+      password: "novaSenha123",
+    })
+    expect(loginResponse.user.id).toBeDefined()
+    console.log("5. Login com a nova senha realizado com sucesso:", loginResponse.user)
   })
 })

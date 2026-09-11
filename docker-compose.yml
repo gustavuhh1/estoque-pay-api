@@ -10,6 +10,9 @@ services:
       POSTGRES_DB: estoque-db
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./docker/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh
 
   adminer:
     image: adminer
