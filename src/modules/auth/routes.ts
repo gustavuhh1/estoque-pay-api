@@ -17,4 +17,6 @@ export async function authRoutes(app: FastifyInstance) {
   // 4. Registrar Rotas
   app.post("/register", async (req, res) => authController.signUp(req, res))
   app.post("/login", async (req, res) => authController.signIn(req, res))
+  app.post("/forgot-password", async (req, res) => authController.forgotPassword(req, res))
+  app.post("/reset-password", async (req, res) => authController.resetPassword(req, res))
 }

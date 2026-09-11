@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
     "name": "EstoquePay",
-    "description": "Coleção de requests para testar manualmente as rotas HTTP do módulo de Autenticação da API EstoquePay.\n\n**Escopo**: espelha apenas os cenários de **sucesso** já cobertos pelos testes automatizados em `src/modules/auth/tests/auth.e2e.spec.ts` (projeto segue TDD — os testes automatizados continuam sendo a fonte da verdade).\n\nCenários de erro (usuário duplicado, campos faltando, login inválido) foram propositalmente deixados fora desta coleção a pedido do time — o foco aqui é validar manualmente o fluxo feliz das rotas.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API sobe em `http://localhost:3333`, prefixo `/auth`).\n2. Rode a pasta **Auth** em sequência (Sign Up → Sign In), pois o Sign In depende de um usuário criado pelo Sign Up.\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Nota**: os métodos `requestResetPassword`/`resetPassword` já existem em `AuthService` (com teste unitário de integração cobrindo o fluxo), mas ainda **não têm rota HTTP exposta** em `src/modules/auth/routes.ts` — por isso não aparecem nesta coleção ainda.",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP do módulo de Autenticação da API EstoquePay.\n\n**Escopo**: espelha apenas os cenários de **sucesso** já cobertos pelos testes automatizados em `src/modules/auth/tests/auth.e2e.spec.ts` (projeto segue TDD — os testes automatizados continuam sendo a fonte da verdade).\n\nCenários de erro (usuário duplicado, campos faltando, login inválido) foram propositalmente deixados fora desta coleção a pedido do time — o foco aqui é validar manualmente o fluxo feliz das rotas.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API sobe em `http://localhost:3333`, prefixo `/auth`).\n2. Rode a pasta **Auth** em sequência (Sign Up → Sign In), pois o Sign In depende de um usuário criado pelo Sign Up.\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "19052417"
   },
@@ -73,6 +73,72 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Forgot Password - Solicitar token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Dispara o e-mail de redefinição via Brevo. O token NÃO volta na resposta (chega apenas por e-mail, no corpo da mensagem como \"Seu token é: ...\" e dentro do link). Copie-o e salve na variável de coleção `resetToken` para usar no request seguinte.\n\nRequer que o e-mail exista: o service lança erro para usuário não cadastrado."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password - Redefinir com token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"novaSenha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Consome o token recebido por e-mail e grava a nova senha. Preencha a variável `resetToken` com o valor vindo do e-mail antes de enviar.\n\nA senha precisa ter no mínimo 8 caracteres (`minPasswordLength` do better-auth e validação no DTO). O token expira em 1 hora e só pode ser usado uma vez.\n\nPara confirmar que funcionou, rode o **Sign In** com a nova senha."
+          },
+          "response": []
         }
       ],
       "description": "Rotas de autenticação (prefixo /auth), registradas em src/modules/auth/routes.ts."
@@ -83,6 +149,11 @@
       "key": "baseUrl",
       "value": "http://localhost:3333",
       "description": "URL base da API rodando localmente (npm run dev)"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "description": "Token de redefinição de senha recebido por e-mail. Preencha manualmente após rodar o Forgot Password."
     }
   ]
 }
