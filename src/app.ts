@@ -9,6 +9,7 @@ import { errorHandler } from "./shared/middlewares/error-handler"
 import routes from "./routes"
 import { auth } from "./lib/auth"
 import {
+  jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler
 } from "@fastify/type-provider-zod"
@@ -18,6 +19,16 @@ export const app = fastify({
 })
 
 app.setErrorHandler(errorHandler)
+
+// Rota inexistente não passa pelo errorHandler: sem isto o 404 sairia no
+// formato padrão do Fastify, quebrando o contrato de erro da API.
+app.setNotFoundHandler((request, reply) => {
+  reply.status(404).send({
+    code: "ROUTE_NOT_FOUND",
+    message: `Rota ${request.method} ${request.url} não encontrada.`,
+    requestId: request.id,
+  })
+})
 
 app.register(cors, {
   origin: true,
@@ -50,6 +61,9 @@ app.register(fastifySwagger, {
     },
     security: [{ bearerAuth: [] }],
   },
+  // Converte os schemas Zod das rotas em OpenAPI (sem isso o /apidocs não
+  // mostra body nem as respostas de erro documentadas).
+  transform: jsonSchemaTransform,
 })
 
 app.register(fastifySwaggerUi, {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { AuthService } from "../service/AuthService"
 import { AuthPrismaRepository } from "../repository/AuthPrismaRepository"
 import { prisma } from "@/lib/prisma"
+import { EmailAlreadyInUseError } from "@/shared/errors"
 
 describe("Auth Module - Integration Tests (DB)", () => {
   let authRepository: AuthPrismaRepository
@@ -48,8 +49,10 @@ describe("Auth Module - Integration Tests (DB)", () => {
       })
       .catch((err) => err)
 
-    expect(error).toBeInstanceOf(Error)
-    expect(error.message).toBe("Usuário já cadastrado")
+    expect(error).toBeInstanceOf(EmailAlreadyInUseError)
+    expect(error.statusCode).toBe(409)
+    expect(error.code).toBe("EMAIL_ALREADY_IN_USE")
+    expect(error.details).toEqual({ field: "email" })
 
     console.log("Erro esperado ao duplicar cadastro:", error.message)
   })
@@ -101,8 +104,8 @@ describe("Auth Module - Integration Tests (DB)", () => {
     console.log("2. Solicitação de reset de senha:", response)
 
     // Note: O Better Auth salva o token no banco com hash por segurança.
-    // Para testar o fluxo, vamos extrair o token (plain-text) que foi enviado para o email (mock do resend).
-    const sendMock = (await import("@/lib/resend")).resend.emails.send as any
+    // Para testar o fluxo, vamos extrair o token (plain-text) que foi enviado para o email (mock do brevo).
+    const sendMock = (await import("@/lib/brevo")).sendEmail as any
     const emailArgs = sendMock.mock.calls[0][0]
 
     // O HTML contém: "Seu token é: XYZ"

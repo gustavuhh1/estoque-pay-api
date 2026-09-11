@@ -26,3 +26,32 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8),
 })
 export type ResetPasswordDTO = z.infer<typeof resetPasswordSchema>
+
+/**
+ * Schemas de resposta: além de documentar o contrato no /apidocs, o Fastify
+ * usa cada um deles para serializar a resposta daquele status.
+ */
+export const userResponseSchema = z.object({
+  id: z.string(),
+  email: z.email(),
+  name: z.string(),
+  emailVerified: z.boolean(),
+  image: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+
+export const signUpResponseSchema = z.object({
+  message: z.string(),
+  user: userResponseSchema,
+})
+
+export const signInResponseSchema = z.object({
+  message: z.string(),
+  user: userResponseSchema,
+})
+
+export const passwordResetResponseSchema = z.object({
+  status: z.boolean(),
+  message: z.string().optional(),
+})
