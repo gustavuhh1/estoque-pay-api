@@ -1,0 +1,88 @@
+{
+  "info": {
+    "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
+    "name": "EstoquePay",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP do módulo de Autenticação da API EstoquePay.\n\n**Escopo**: espelha apenas os cenários de **sucesso** já cobertos pelos testes automatizados em `src/modules/auth/tests/auth.e2e.spec.ts` (projeto segue TDD — os testes automatizados continuam sendo a fonte da verdade).\n\nCenários de erro (usuário duplicado, campos faltando, login inválido) foram propositalmente deixados fora desta coleção a pedido do time — o foco aqui é validar manualmente o fluxo feliz das rotas.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API sobe em `http://localhost:3333`, prefixo `/auth`).\n2. Rode a pasta **Auth** em sequência (Sign Up → Sign In), pois o Sign In depende de um usuário criado pelo Sign Up.\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Nota**: os métodos `requestResetPassword`/`resetPassword` já existem em `AuthService` (com teste unitário de integração cobrindo o fluxo), mas ainda **não têm rota HTTP exposta** em `src/modules/auth/routes.ts` — por isso não aparecem nesta coleção ainda.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "19052417"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign Up - Cadastrar usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\",\n  \"name\": \"usuario\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sign In - Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Rotas de autenticação (prefixo /auth), registradas em src/modules/auth/routes.ts."
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3333",
+      "description": "URL base da API rodando localmente (npm run dev)"
+    }
+  ]
+}
