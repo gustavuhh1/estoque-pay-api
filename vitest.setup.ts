@@ -1,15 +1,10 @@
 import { beforeEach } from "vitest"
 import { prisma } from "./src/lib/prisma"
-import { resend } from "./src/lib/resend"
 import { vi } from "vitest"
 
-// Mock do envio de emails no Resend
-vi.mock("./src/lib/resend", () => ({
-  resend: {
-    emails: {
-      send: vi.fn().mockResolvedValue({ id: "mocked_email_id" }),
-    },
-  },
+// Mock do envio de emails no Brevo
+vi.mock("./src/lib/brevo", () => ({
+  sendEmail: vi.fn().mockResolvedValue({ messageId: "mocked_message_id" }),
 }))
 
 beforeEach(async () => {
