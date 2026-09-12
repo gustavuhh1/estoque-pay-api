@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
     "name": "EstoquePay",
-    "description": "Coleção de requests para testar manualmente as rotas HTTP do módulo de Autenticação da API EstoquePay.\n\n**Escopo**: espelha apenas os cenários de **sucesso** já cobertos pelos testes automatizados em `src/modules/auth/tests/auth.e2e.spec.ts` (projeto segue TDD — os testes automatizados continuam sendo a fonte da verdade).\n\nCenários de erro (usuário duplicado, campos faltando, login inválido) foram propositalmente deixados fora desta coleção a pedido do time — o foco aqui é validar manualmente o fluxo feliz das rotas.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API sobe em `http://localhost:3333`, prefixo `/auth`).\n2. Rode a pasta **Auth** em sequência (Sign Up → Sign In), pois o Sign In depende de um usuário criado pelo Sign Up.\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 409), com asserções `pm.test`. A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`. Não precisa editar à mão.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "19052417"
   },
@@ -142,6 +142,436 @@
         }
       ],
       "description": "Rotas de autenticação (prefixo /auth), registradas em src/modules/auth/routes.ts."
+    },
+    {
+      "name": "Estabelecimento",
+      "description": "Onboarding da loja (RF02.1 e RF02.2), com asserções `pm.test` espelhando `src/modules/estabelecimento/tests/estabelecimento.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. Os scripts geram e-mail e CNPJ novos a cada execução, então dá para rodar quantas vezes quiser sem limpar o banco.\n\nA ordem importa — o `401` vem primeiro de propósito (antes de existir sessão) e o `409` depende da loja criada pelo `201`.",
+      "item": [
+        {
+          "name": "401 - Criar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});",
+                  "",
+                  "pm.test('Resposta traz requestId (liga o ticket ao log)', function () {",
+                  "  pm.expect(pm.response.json().requestId).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja Anônima\",\n  \"cnpj\": \"11.222.333/0001-81\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            },
+            "description": "Primeiro request da pasta **de propósito**: roda antes do login, quando ainda não há sessão.\n\nProva que o `requireAuth` protege a rota. O body é válido de propósito — no ciclo do Fastify o `preHandler` roda **depois** da validação do body, então um body inválido devolveria 400 e mascararia o 401.\n\nSe este teste falhar com 201, provavelmente sobrou um cookie de sessão de uma execução anterior. O pre-request tenta limpar o cookie jar automaticamente; se o Postman bloquear, limpe os cookies de `localhost` na aba **Cookies**."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// E-mail unico: o banco de dev nao e truncado entre execucoes.",
+                  "pm.collectionVariables.set('ownerEmail', 'dono-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('ownerPassword', 'password123');",
+                  "",
+                  "// CNPJ valido e aleatorio: a API valida os dois digitos verificadores e o",
+                  "// CNPJ e unico na plataforma, entao um valor fixo so passaria na 1a rodada.",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]); // filial 0001",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('cnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'cnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"name\": \"Dono da Loja\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Cria o usuário que vai virar `OWNER` da loja.\n\nO pre-request gera, por execução:\n- **`ownerEmail`** único — o banco de dev não é limpo entre execuções, então um e-mail fixo daria `409 EMAIL_ALREADY_IN_USE` na segunda rodada.\n- **`cnpj`** válido e aleatório (com dígitos verificadores calculados) e sua versão mascarada em **`cnpjMascarado`** — o CNPJ é único na plataforma inteira, então um valor fixo só funcionaria uma vez."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  // Sem este Set-Cookie o login e inutil na pratica: toda rota protegida",
+                  "  // por requireAuth responderia 401.",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica o dono e recebe o cookie de sessão (`better-auth.session_token`), que o cookie jar do Postman reenvia sozinho nos requests seguintes.\n\nO teste do `Set-Cookie` não é decoração: até a issue #39 o login respondia 200 **sem** cookie nenhum, e o cliente autenticava mas tomava 401 em qualquer rota protegida."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar estabelecimento (RF02.1 + RF02.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estabelecimento criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('CNPJ e normalizado (mascara entra, so digitos saem)', function () {",
+                  "  pm.expect(pm.response.json().estabelecimento.cnpj)",
+                  "    .to.eql(pm.collectionVariables.get('cnpj'));",
+                  "});",
+                  "",
+                  "pm.test('RF02.2: criador vinculado como OWNER', function () {",
+                  "  pm.expect(pm.response.json().membro.role).to.eql('OWNER');",
+                  "});",
+                  "",
+                  "pm.test('Dados do certificado A1 nao vazam na resposta', function () {",
+                  "  var loja = pm.response.json().estabelecimento;",
+                  "  pm.expect(loja).to.not.have.property('certificado_a1_senha');",
+                  "  pm.expect(loja).to.not.have.property('certificado_a1');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Mercearia do Zé\",\n  \"cnpj\": \"{{cnpjMascarado}}\",\n  \"ie\": \"123456789\",\n  \"emite_nfce\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            },
+            "description": "O caminho feliz do onboarding: cria a loja e vincula o usuário autenticado como `OWNER`, tudo na mesma `$transaction`.\n\nEnvia o CNPJ **com máscara** de propósito, para provar a normalização: o que volta (e o que fica no banco) são só os 14 dígitos. Sem isso, `11.222.333/0001-81` e `11222333000181` virariam duas lojas e o `@unique` do CNPJ não protegeria nada.\n\n`ie` e `emite_nfce` são opcionais (`emite_nfce` assume `false`)."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - CNPJ já cadastrado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 em CNPJ duplicado', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e CNPJ_ALREADY_IN_USE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('CNPJ_ALREADY_IN_USE');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo em conflito (para o form destacar)', function () {",
+                  "  pm.expect(pm.response.json().details.field).to.eql('cnpj');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja Duplicada\",\n  \"cnpj\": \"{{cnpj}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            },
+            "description": "Repete o CNPJ criado no request anterior, agora **sem máscara** — a normalização precisa reconhecer que é o mesmo CNPJ e barrar.\n\nO CNPJ é único na plataforma inteira, não por usuário: ninguém pode recadastrar uma loja que já existe. O caminho certo para entrar numa loja alheia é ser convidado pelo dono."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Sem nome",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 com dados incompletos', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo nome em details.issues', function () {",
+                  "  var campos = pm.response.json().details.issues.map(function (i) { return i.field; });",
+                  "  pm.expect(campos).to.include('nome');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            },
+            "description": "Dados incompletos: o schema Zod da rota rejeita antes de chegar no handler, e o error-handler traduz para o envelope padrão da API.\n\n`details.issues` traz um item por campo inválido, no formato `{ field, message }` — é o que o formulário usa para marcar o campo errado sem parsear texto."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - CNPJ inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para CNPJ invalido', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo cnpj em details.issues', function () {",
+                  "  var campos = pm.response.json().details.issues.map(function (i) { return i.field; });",
+                  "  pm.expect(campos).to.include('cnpj');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja CNPJ Falso\",\n  \"cnpj\": \"11.111.111/1111-11\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            },
+            "description": "`11.111.111/1111-11` passa na conta do módulo 11, mas não existe na Receita — é o placeholder clássico digitado em formulário. A validação rejeita sequências de dígitos repetidos como caso especial.\n\nTrocando por um CNPJ com dígito verificador errado (ex: mudar o último dígito de um CNPJ válido) o resultado é o mesmo 400."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -154,6 +584,26 @@
       "key": "resetToken",
       "value": "",
       "description": "Token de redefinição de senha recebido por e-mail. Preencha manualmente após rodar o Forgot Password."
+    },
+    {
+      "key": "ownerEmail",
+      "value": ""
+    },
+    {
+      "key": "ownerPassword",
+      "value": ""
+    },
+    {
+      "key": "cnpj",
+      "value": ""
+    },
+    {
+      "key": "cnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "estabelecimentoId",
+      "value": ""
     }
   ]
 }
