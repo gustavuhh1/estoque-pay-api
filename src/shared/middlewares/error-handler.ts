@@ -5,6 +5,7 @@ import { ZodError } from "zod"
 import { Prisma } from "../../../generated/prisma/client.js"
 import {
   AppError,
+  CnpjAlreadyInUseError,
   ConflictError,
   EmailAlreadyInUseError,
   UnauthorizedError,
@@ -105,6 +106,16 @@ export function errorHandler(
 
     if (field?.includes("email")) {
       const conflict = new EmailAlreadyInUseError()
+      return send(
+        conflict.statusCode,
+        conflict.code,
+        conflict.message,
+        conflict.details
+      )
+    }
+
+    if (field?.includes("cnpj")) {
+      const conflict = new CnpjAlreadyInUseError()
       return send(
         conflict.statusCode,
         conflict.code,

@@ -54,19 +54,26 @@ export class AuthService {
       throw new UnauthorizedError("Credenciais inválidas");
     }
 
-    // Utilizando o better-auth para login e gestão de sessão
-    const response = await auth.api.signInEmail({
+    // `returnHeaders` é o que devolve o Set-Cookie da sessão. Sem ele o login
+    // respondia 200 sem cookie nenhum, e o cliente não conseguia acessar
+    // nenhuma rota protegida por requireAuth.
+    const { headers, response } = await auth.api.signInEmail({
       body: {
         email: data.email,
         password: data.password,
       },
+      returnHeaders: true,
     });
 
     if (!response.user) {
       throw new UnauthorizedError("Credenciais inválidas");
     }
 
-    return { message: "Login realizado com sucesso", user: response.user };
+    return {
+      message: "Login realizado com sucesso",
+      user: response.user,
+      headers,
+    };
   }
 
   async requestResetPassword(email: string) {

@@ -3,15 +3,18 @@
 Este documento centraliza a visão arquitetural e de produto para a plataforma EstoquePay, definindo os limites claros (chão e teto) do Produto Mínimo Viável (MVP) para evitar redundâncias e excesso de funcionalidades no início do projeto.
 
 ## 1. Visão Geral e Problema
+
 A plataforma visa solucionar a falta de controle integrado entre estoque e pagamentos enfrentada por pequenos e médios empreendedores, como donos de mercearias, bodegas e docerias.
 
 **Objetivo Principal:** Entregar uma aplicação web centralizada com controle de acesso, PDV e gestão de estoque em um único ambiente, facilitando a vida de pequenos e médios comerciantes.
 
 ## 2. Público-Alvo (Persona)
+
 * Donos de estabelecimentos comerciais de pequeno e médio porte.
 * Gerentes e comerciantes que necessitam de um centralizador de gestão.
 
 ## 3. Arquitetura e Stack Tecnológica
+
 * **Arquitetura:** Microsserviços, com separação estrita em dois repositórios distintos (um para o Back-end e outro para o Front-end).
 * **Frontend:** Next.js (Repositório exclusivo).
 * **Backend:** Fastify (Repositório exclusivo).
@@ -28,5 +31,6 @@ A plataforma visa solucionar a falta de controle integrado entre estoque e pagam
 | **PDV** | Iniciar compra, pesquisar produtos, processar carrinho, sumário de compras, cálculo de troco e Abertura/Fechamento de caixa (Opcional, restrito a Owner/Gestor). | Campanhas promocionais automatizadas no caixa. |
 | **Pagamentos & Vendas** | Pix 100% integrado via AbacatePay (confirmação automática via webhook); Registro manual para Dinheiro e Cartão; histórico de vendas, split de pagamentos. | Integração automática com adquirentes de cartão (TEF). |
 | **Emissão NFCe (Nota Fiscal)** | Serviço dependente do PDV e CRM. Integração via API (Focus NFe/eNotas) para emissão "invisível" em segundo plano. Salva apenas URLs de PDF/XML e Status da nota. | Comunicação direta com a SEFAZ (mensageria), geração manual de XML no nosso back-end. |
-| **Configurações** | Dados do estabelecimento (CNPJ, Nome, IE, Certificado A1), gestão da equipe e controle de plano premium.
+| **Configurações** | Dados do estabelecimento (CNPJ, Nome, IE, Certificado A1) e gestão da equipe. | — |
+| **Assinatura & Billing (SaaS)** | Plano Premium mensal (R$ 30,00) ou anual (R$ 299,90); trial gratuito de 7 dias condicionado ao registro prévio de meio de pagamento no AbacatePay; cobrança recorrente automática; atualização de status via webhook (ativa/trial/inadimplente/cancelada); plano sempre derivado de `Assinatura.status`, nunca de uma coluna própria. Loja inadimplente/sem Premium mantém acesso ao painel, mas em modo restrito (limites do plano Free: 50 produtos ativos, 3 membros, CRM restrito a CPF/Nome, NFC-e desligada). | Múltiplos planos Premium (níveis/tiers), cupons de desconto na assinatura, faturamento por boleto ou nota fiscal de serviço automatizada. |
 | **Inteligência Financeira** | Métricas baseadas no `preco_custo`: Dashboard de Lucro Bruto real por venda, trava anti-prejuízo e cálculo do capital imobilizado (Valuation do Estoque). | Emissão de DRE completo, Gestão de Contas a Pagar/Receber e Fluxo de Caixa contábil projetado. |

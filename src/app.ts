@@ -52,14 +52,16 @@ app.register(fastifySwagger, {
     },
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
+        // A sessão do better-auth viaja em cookie httpOnly; não há plugin
+        // bearer habilitado, então declarar bearerAuth aqui seria mentira.
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "better-auth.session_token",
         },
       },
     },
-    security: [{ bearerAuth: [] }],
+    security: [{ cookieAuth: [] }],
   },
   // Converte os schemas Zod das rotas em OpenAPI (sem isso o /apidocs não
   // mostra body nem as respostas de erro documentadas).

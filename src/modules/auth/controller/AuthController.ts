@@ -24,7 +24,14 @@ export class AuthController {
     request: FastifyRequest<{ Body: SignInDTO }>,
     reply: FastifyReply
   ) {
-    const result = await this.authService.signIn(request.body)
+    const { headers, ...result } = await this.authService.signIn(request.body)
+
+    // O cookie de sessão nasce dentro do better-auth; é aqui que ele é
+    // repassado para a resposta HTTP, senão o cliente sai do login sem sessão.
+    for (const cookie of headers.getSetCookie()) {
+      reply.header("set-cookie", cookie)
+    }
+
     return reply.status(200).send(result)
   }
 

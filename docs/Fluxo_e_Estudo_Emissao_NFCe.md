@@ -1,18 +1,27 @@
 # Fluxo e Estudo Emissão NFCe
 
 ## 1. O que é NCM? (O "DNA" do Produto)
+
 A sigla significa Nomenclatura Comum do Mercosul. É um código de 8 dígitos obrigatório para qualquer produto vendido.
 
 * **Para que serve:** Ele diz para o governo exatamente o que você está vendendo. É através dele que o governo sabe se deve cobrar mais imposto (ex: cigarro e bebida alcoólica) ou menos imposto (ex: arroz e feijão).
 * **Na prática:** O lojista não precisa inventar esse número. Quando ele compra mercadorias do fornecedor para revender, o NCM já vem escrito na nota fiscal de compra. Ele só precisa copiar esse código de 8 dígitos ao cadastrar o produto no EstoquePay.
 
 ## 2. O que é CFOP? (O "GPS" da Operação)
+
 A sigla significa Código Fiscal de Operações e Prestações. É um código de 4 dígitos.
 
 * **Para que serve:** Ele diz para o governo o que está acontecendo com aquele produto (é uma venda? é uma devolução? é uma doação?) e para onde ele está indo (dentro do estado ou fora do estado?).
 * **Na prática:** Para o público do EstoquePay (mercearias e docerias locais), 99% das vendas vão usar o mesmo código: 5102 (Venda de mercadoria adquirida de terceiros, vendida dentro do próprio estado). Nós podemos até deixar esse valor pré-preenchido no sistema para facilitar a vida do lojista.
 
+## 3. Pré-requisito: Plano Premium (Assinatura)
+
+A emissão de NFC-e não é um recurso do plano Free. Antes de qualquer disparo, o sistema faz um pre-check de conformidade (Fase 5, RN01 da Fase 4): a loja só pode ligar o switch `emite_nfce` se o plano efetivo — derivado de `Assinatura.status` (`TRIALING` ou `ACTIVE`) — for Premium, o Certificado A1 estiver cadastrado e nenhum produto ativo estiver sem NCM/CFOP.
+
+Se a assinatura cair para `PAST_DUE` ou `CANCELED` (inadimplência), o webhook de billing desliga `emite_nfce` automaticamente — a loja não perde acesso ao painel, mas para de emitir notas até regularizar o pagamento.
+
 ## O Fluxo Completo de uma Venda com NFC-e
+
 Aqui está exatamente o que acontece desde o momento em que o cliente pega uma Coca-Cola até o XML chegar no contador:
 
 1. **A Venda no Balcão:** O caixa bipa o produto no PDV, recebe R$ 5,00 em dinheiro e finaliza a compra.

@@ -74,3 +74,14 @@ export class EmailAlreadyInUseError extends ConflictError {
     super(message, "EMAIL_ALREADY_IN_USE", { field: "email" })
   }
 }
+
+/**
+ * Conflito de onboarding: o CNPJ é único na plataforma inteira, não por usuário.
+ * Código próprio para o cliente destacar o campo e orientar quem tenta cadastrar
+ * uma loja que já existe (o caminho certo é pedir convite ao dono, não recriar).
+ */
+export class CnpjAlreadyInUseError extends ConflictError {
+  constructor(message = "Este CNPJ já está cadastrado na plataforma.") {
+    super(message, "CNPJ_ALREADY_IN_USE", { field: "cnpj" })
+  }
+}
