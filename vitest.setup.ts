@@ -8,11 +8,12 @@ vi.mock("./src/lib/brevo", () => ({
 }))
 
 beforeEach(async () => {
-  // Limpar os dados antes de cada teste no banco de testes
-  await prisma.user.deleteMany()
-  // As demais tabelas em cascata também serão deletadas dependendo do relacionamento
-  // Para ser completo, podemos deletar as que não tem cascade ou simplesmente limpar o banco todo:
+  // Limpar os dados antes de cada teste no banco de testes.
+  // Ordem filho -> pai: hoje o cascade daria conta sozinho, mas explicitar
+  // protege o setup caso algum onDelete mude no schema.
+  await prisma.membroEstabelecimento.deleteMany()
   await prisma.estabelecimento.deleteMany()
-  
+  await prisma.user.deleteMany()
+
   vi.clearAllMocks()
 })
