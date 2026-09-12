@@ -12,7 +12,12 @@ export const createEstabelecimentoSchema = z.object({
     .refine(isValidCnpj, "CNPJ inválido.")
     .meta({ example: "11.222.333/0001-81" }),
   ie: z.string().trim().optional(),
-  emite_nfce: z.boolean().optional().default(false),
+  // emite_nfce NÃO é parâmetro de criação de propósito: nasce sempre false
+  // (default do schema). Ligar o switch passa por um pre-check de conformidade
+  // (RN01/RN01.1 — Certificado A1, CNPJ/IE, produtos com NCM/CFOP e plano
+  // Premium ativo) que não existe no momento em que a loja é criada — ver
+  // issue #59. Aceitar o campo aqui seria abrir uma porta para pular esse
+  // pre-check inteiro.
 })
 
 /** Saída do parse: o que o service recebe (cnpj já normalizado). */

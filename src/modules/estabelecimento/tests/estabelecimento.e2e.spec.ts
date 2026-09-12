@@ -18,7 +18,6 @@ describe("Estabelecimento Module - E2E (DB Real)", () => {
         nome: "Mercearia do Zé",
         cnpj: CNPJ_MASCARADO,
         ie: "123456789",
-        emite_nfce: true,
       },
     })
 
@@ -30,6 +29,9 @@ describe("Estabelecimento Module - E2E (DB Real)", () => {
     expect(json.estabelecimento.cnpj).toBe(CNPJ_NORMALIZADO)
     expect(json.membro.role).toBe("OWNER")
     expect(json.membro.userId).toBe(user.id)
+    // emite_nfce não é parâmetro de criação: nasce sempre false (RN01/RN01.1,
+    // issue #59 — ligar o switch depende de um pre-check que não existe aqui).
+    expect(json.estabelecimento.emite_nfce).toBe(false)
 
     const membroNoBanco = await prisma.membroEstabelecimento.findUnique({
       where: {

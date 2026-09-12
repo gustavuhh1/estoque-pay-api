@@ -35,7 +35,7 @@ export class InMemoryEstabelecimentoRepository
       ie: data.ie ?? null,
       certificado_a1: null,
       certificado_a1_senha: null,
-      emite_nfce: data.emite_nfce,
+      emite_nfce: false,
       criado_em: new Date(),
     }
 

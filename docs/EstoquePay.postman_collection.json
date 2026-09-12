@@ -390,7 +390,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Mercearia do Zé\",\n  \"cnpj\": \"{{cnpjMascarado}}\",\n  \"ie\": \"123456789\",\n  \"emite_nfce\": false\n}",
+              "raw": "{\n  \"nome\": \"Mercearia do Zé\",\n  \"cnpj\": \"{{cnpjMascarado}}\",\n  \"ie\": \"123456789\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -406,7 +406,7 @@
                 "estabelecimento"
               ]
             },
-            "description": "O caminho feliz do onboarding: cria a loja e vincula o usuário autenticado como `OWNER`, tudo na mesma `$transaction`.\n\nEnvia o CNPJ **com máscara** de propósito, para provar a normalização: o que volta (e o que fica no banco) são só os 14 dígitos. Sem isso, `11.222.333/0001-81` e `11222333000181` virariam duas lojas e o `@unique` do CNPJ não protegeria nada.\n\n`ie` e `emite_nfce` são opcionais (`emite_nfce` assume `false`)."
+            "description": "O caminho feliz do onboarding: cria a loja e vincula o usuário autenticado como `OWNER`, tudo na mesma `$transaction`.\n\nEnvia o CNPJ **com máscara** de propósito, para provar a normalização: o que volta (e o que fica no banco) são só os 14 dígitos. Sem isso, `11.222.333/0001-81` e `11222333000181` virariam duas lojas e o `@unique` do CNPJ não protegeria nada.\n\n`ie` é opcional. `emite_nfce` **não é aceito nesta rota** — nasce sempre `false`: ligar o switch fiscal depende de um pre-check de conformidade (Certificado A1, CNPJ/IE, produtos com NCM/CFOP e plano Premium ativo) que ainda não existe no onboarding."
           },
           "response": []
         },

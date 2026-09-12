@@ -11,7 +11,6 @@ export interface CreateWithOwnerParams {
   nome: string
   cnpj: string
   ie?: string | undefined
-  emite_nfce: boolean
   ownerId: string
 }
 

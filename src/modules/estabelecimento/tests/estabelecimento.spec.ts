@@ -32,7 +32,6 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
     const result = await sut.create({
       nome: "Mercearia do Zé",
       cnpj: CNPJ_VALIDO,
-      emite_nfce: false,
       ownerId: user.id,
     })
 
@@ -53,14 +52,13 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
     expect(membroNoBanco?.role).toBe("OWNER")
   })
 
-  it("Deve persistir os dados fiscais opcionais informados", async () => {
+  it("Deve persistir o dado fiscal opcional (IE) informado", async () => {
     const user = await criarUsuario()
 
     const result = await sut.create({
       nome: "Loja Fiscal",
       cnpj: CNPJ_VALIDO,
       ie: "123456789",
-      emite_nfce: true,
       ownerId: user.id,
     })
 
@@ -69,7 +67,21 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
     })
 
     expect(noBanco?.ie).toBe("123456789")
-    expect(noBanco?.emite_nfce).toBe(true)
+  })
+
+  it("Deve nascer sempre com emite_nfce = false, mesmo se o cliente tentar mandar outro valor", async () => {
+    // emite_nfce não é parâmetro de criação (ver comentário em
+    // CreateWithOwnerParams): ligar o switch depende de um pre-check de
+    // conformidade (RN01/RN01.1, issue #59) que não existe no onboarding.
+    const user = await criarUsuario()
+
+    const result = await sut.create({
+      nome: "Loja Recém-Criada",
+      cnpj: CNPJ_VALIDO,
+      ownerId: user.id,
+    })
+
+    expect(result.estabelecimento.emite_nfce).toBe(false)
   })
 
   it("Deve lançar CnpjAlreadyInUseError quando o CNPJ já existe na plataforma", async () => {
@@ -79,7 +91,6 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
     await sut.create({
       nome: "Primeira Loja",
       cnpj: CNPJ_VALIDO,
-      emite_nfce: false,
       ownerId: primeiroDono.id,
     })
 
@@ -88,7 +99,6 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
       sut.create({
         nome: "Segunda Loja",
         cnpj: CNPJ_VALIDO,
-        emite_nfce: false,
         ownerId: segundoDono.id,
       })
     ).rejects.toBeInstanceOf(CnpjAlreadyInUseError)
@@ -100,13 +110,11 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
     await sut.create({
       nome: "Loja A",
       cnpj: CNPJ_VALIDO,
-      emite_nfce: false,
       ownerId: user.id,
     })
     await sut.create({
       nome: "Loja B",
       cnpj: OUTRO_CNPJ_VALIDO,
-      emite_nfce: false,
       ownerId: user.id,
     })
 
@@ -125,7 +133,6 @@ describe("EstabelecimentoService - Onboarding (RF02.1 / RF02.2)", () => {
       sut.create({
         nome: "Loja Órfã",
         cnpj: CNPJ_VALIDO,
-        emite_nfce: false,
         ownerId: randomUUID(), // usuário que não existe -> viola a FK
       })
     ).rejects.toThrow()

@@ -26,7 +26,8 @@ export class EstabelecimentoPrismaRepository
           nome: data.nome,
           cnpj: data.cnpj,
           ie: data.ie ?? null,
-          emite_nfce: data.emite_nfce,
+          // emite_nfce fica de fora: nasce false pelo default do schema. Ver
+          // o comentário em CreateWithOwnerParams.
         },
       })
 
