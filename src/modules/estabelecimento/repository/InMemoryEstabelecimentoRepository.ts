@@ -6,7 +6,9 @@ import type {
 import type {
   CreateWithOwnerParams,
   CreateWithOwnerResult,
+  EstabelecimentoComMembro,
   IEstabelecimentoRepository,
+  UpdateEstabelecimentoParams,
 } from "./IEstabelecimentoRepository"
 
 /**
@@ -52,5 +54,42 @@ export class InMemoryEstabelecimentoRepository
     this.membros.push(membro)
 
     return { estabelecimento, membro }
+  }
+
+  async findManyByUserId(userId: string): Promise<EstabelecimentoComMembro[]> {
+    return this.membros
+      .filter((membro) => membro.userId === userId)
+      .map((membro) => {
+        const estabelecimento = this.estabelecimentos.find(
+          (item) => item.id === membro.estabelecimentoId
+        )
+
+        if (!estabelecimento) {
+          throw new Error(
+            `Estabelecimento ${membro.estabelecimentoId} não encontrado no fake de teste.`
+          )
+        }
+
+        return { estabelecimento, role: membro.role }
+      })
+  }
+
+  async findById(id: string): Promise<Estabelecimento | null> {
+    return this.estabelecimentos.find((item) => item.id === id) ?? null
+  }
+
+  async update(
+    id: string,
+    data: UpdateEstabelecimentoParams
+  ): Promise<Estabelecimento> {
+    const estabelecimento = this.estabelecimentos.find((item) => item.id === id)
+
+    if (!estabelecimento) {
+      throw new Error(`Estabelecimento ${id} não encontrado no fake de teste.`)
+    }
+
+    Object.assign(estabelecimento, data)
+
+    return estabelecimento
   }
 }
