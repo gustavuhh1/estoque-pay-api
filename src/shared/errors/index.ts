@@ -85,3 +85,14 @@ export class CnpjAlreadyInUseError extends ConflictError {
     super(message, "CNPJ_ALREADY_IN_USE", { field: "cnpj" })
   }
 }
+
+/**
+ * Conflito de cadastro de produto: o código de barras (EAN/GTIN) é único por
+ * loja (não na plataforma inteira, ao contrário do CNPJ — cada estabelecimento
+ * tem seu próprio catálogo).
+ */
+export class EanGtinAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe um produto com este código de barras nesta loja.") {
+    super(message, "EAN_GTIN_ALREADY_IN_USE", { field: "ean_gtin" })
+  }
+}

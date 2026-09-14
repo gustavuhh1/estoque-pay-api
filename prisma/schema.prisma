@@ -274,6 +274,7 @@ model Produto {
   ncm                String? // Nomenclatura Comum do Mercosul
   cfop               String? // Código Fiscal de Operações e Prestações
   ativo              Boolean    @default(true) // Para inativação sem perder histórico
+  deletado_em        DateTime? // Soft delete invisível: produtos já vendidos não podem ser hard-deleted (ItemVenda tem FK RESTRICT), então "excluir" um produto com histórico de venda só marca isto e libera o ean_gtin
   criado_em          DateTime   @default(now())
   atualizado_em      DateTime   @default(now()) @updatedAt
 
@@ -285,6 +286,7 @@ model Produto {
   // NULLs não colidem em unique no Postgres: vários produtos sem código de barras são permitidos
   @@unique([estabelecimento_id, ean_gtin])
   @@index([estabelecimento_id, ativo])
+  @@index([estabelecimento_id, deletado_em])
   @@map("produtos")
 }
 
