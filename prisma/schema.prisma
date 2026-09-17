@@ -102,6 +102,7 @@ model Estabelecimento {
   movimentacoes MovimentacaoEstoque[]
   cupons        Cupom[]
   assinatura    Assinatura?
+  convites      ConviteFuncionario[]
 
   @@map("estabelecimentos")
 }
@@ -141,6 +142,7 @@ model User {
   vendas            Venda[]               @relation("VendasOperador")
   vendas_canceladas Venda[]               @relation("VendasCanceladas")
   movimentacoes     MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
+  convites_criados  ConviteFuncionario[]
 
   @@unique([email])
   @@map("user")
@@ -163,6 +165,32 @@ model MembroEstabelecimento {
   @@index([userId])
   @@index([estabelecimentoId])
   @@map("membros_estabelecimento")
+}
+
+/**
+ * Convite de funcionário (#41): quando o Owner/Gestor cadastra um e-mail que
+ * ainda não tem conta na plataforma, o vínculo não pode ser criado na hora
+ * (MembroEstabelecimento.userId é obrigatório) — este registro fica pendente
+ * até a pessoa se cadastrar (e-mail/senha ou Google) com o mesmo e-mail. O
+ * hook `databaseHooks.user.create.after` (src/lib/auth.ts) consome os
+ * convites pendentes e cria o(s) MembroEstabelecimento na hora do cadastro.
+ */
+model ConviteFuncionario {
+  id                String    @id @default(uuid())
+  email             String
+  estabelecimentoId String
+  role              Role
+  criadoPorId       String
+  createdAt         DateTime  @default(now())
+  aceitoEm          DateTime?
+
+  estabelecimento Estabelecimento @relation(fields: [estabelecimentoId], references: [id], onDelete: Cascade)
+  criadoPor       User            @relation(fields: [criadoPorId], references: [id], onDelete: Cascade)
+
+  // Um convite pendente por e-mail/loja: reenviar apenas atualiza o existente.
+  @@unique([email, estabelecimentoId])
+  @@index([email])
+  @@map("convites_funcionario")
 }
 
 model Session {
