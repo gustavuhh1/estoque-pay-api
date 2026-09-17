@@ -1,6 +1,6 @@
 # Status de Implementação vs. Issues do GitHub
 
-> Comparativo entre o que a aplicação faz hoje (branch `feature/equipe-funcionarios`, a partir da `main`) e o backlog de issues do repositório `gustavuhh1/estoque-pay-api`. Gerado em 2026-09-12, atualizado em 2026-09-17 (módulo Produtos mesclado; início do módulo Equipe).
+> Comparativo entre o que a aplicação faz hoje (branch `feature/equipe-funcionarios`, a partir da `main`) e o backlog de issues do repositório `gustavuhh1/estoque-pay-api`. Gerado em 2026-09-12, atualizado em 2026-09-17 (módulo Produtos mesclado; módulo Equipe implementado, aguardando merge).
 
 ## Como ler este documento
 
@@ -22,10 +22,10 @@ A base de dados (`prisma/schema.prisma`) já modela **praticamente todas** as en
 | #38 | Gestão de Sessão e Logout | CLOSED | ✅ Feito | Sessão e logout resolvidos pelo handler nativo `/api/auth/*` do better-auth (sign-out, invalidação de cookie); `requireAuth` já rejeita sessão ausente/inválida com 401. |
 | #39 | Onboarding e Cargo Automático | CLOSED (PR #69) | ✅ Feito | `POST /estabelecimento` cria a loja e vincula o criador como `OWNER` na mesma `$transaction`. CNPJ validado (dígito verificador) e obrigatório, nome obrigatório, 409 `CNPJ_ALREADY_IN_USE` em duplicidade. |
 | #40 | Listagem, Contexto e Dados da Loja | CLOSED (PR #70) | ✅ Feito | `GET /estabelecimento` lista, `PATCH` edita a loja ativa (header `x-estabelecimento-id`), middleware `requireTenant` valida vínculo do usuário à loja. RBAC bloqueando Gestor de editar campos críticos implementado. |
-| #41 | Cadastro e Listagem de Funcionários | OPEN | 🚧 Em desenvolvimento (`feature/equipe-funcionarios`) | Não existe módulo `equipe` ainda. O schema já suporta (`MembroEstabelecimento.role`), e o `requireTenant` já resolve o vínculo — falta service/controller/rotas e a RBAC (bloqueio de `CASHIER`). |
-| #42 | Edição e Exclusão de Funcionários | OPEN | 🚧 Em desenvolvimento (`feature/equipe-funcionarios`) | Depende do #41. Regras RN02 (Gestor não edita/exclui Owner) e RN03 (não excluir o último Owner) ainda não implementadas. |
+| #41 | Cadastro e Listagem de Funcionários | OPEN | ✅ **Feito nesta branch (aguardando merge)** | `POST /equipe` vincula direto e sem e-mail (RN01) quando o e-mail já tem conta na plataforma (201). Se não tem, cria um convite pendente (`ConviteFuncionario`) e dispara e-mail via Brevo (202) — o vínculo é criado sozinho quando a pessoa completa o cadastro (e-mail/senha ou Google), via hook `databaseHooks.user.create.after` do better-auth, sem rota nova em `auth`. `GET /equipe` lista membros + convites pendentes. CASHIER bloqueado (`403 ROLE_CANNOT_MANAGE_EQUIPE`); Gestor só atribui o cargo Caixa (`403 ROLE_CANNOT_ASSIGN_ROLE` senão); cadastro duplicado retorna `409 FUNCIONARIO_JA_VINCULADO`. Extensão de escopo combinada com o usuário — issue #41 atualizada. |
+| #42 | Edição e Exclusão de Funcionários | OPEN | ✅ **Feito nesta branch (aguardando merge)** | `PATCH /equipe/:id` edita o cargo; `DELETE /equipe/:id` remove o vínculo. RN02: Gestor recebe `403 ROLE_CANNOT_EDIT_OWNER` ao tentar editar/excluir um Owner. RN03: bloqueia excluir o último Owner da loja (`403 LAST_OWNER_CANNOT_BE_REMOVED`) — estendido também para a edição (rebaixar o último Owner é bloqueado pelo mesmo motivo, decisão documentada na issue). RN06: exclusão revoga as sessões do funcionário (`prisma.session.deleteMany`) — decisão combinada com o usuário: só na exclusão, não na edição de cargo (o `requireTenant` já lê o cargo atualizado a cada request). |
 
-**Bloqueio a observar**: #41 e #42 podem reaproveitar o **middleware `requireTenant`** já implementado (via #40) — falta apenas o módulo `equipe` (service/controller/rotas) e a RBAC específica de gestão de funcionários.
+**Nota #41/#42**: exigiu tabela nova `ConviteFuncionario` (migração `20260917000000_add_convite_funcionario`) e um `databaseHooks.user.create.after` em `src/lib/auth.ts`. 132/132 testes passando, `tsc --noEmit` limpo. Falta: abrir/mesclar o PR (`feature/equipe-funcionarios` → `main`) e rodar a migration no ambiente-alvo.
 
 ---
 
@@ -88,7 +88,7 @@ A base de dados (`prisma/schema.prisma`) já modela **praticamente todas** as en
 ## Resumo executivo
 
 - **Concluído**: 9/29 issues fechadas — #35–#38 (módulo `auth`), #39 e #40 (onboarding e listagem/edição de estabelecimento, PRs #69 e #70), #43/#44/#45 (módulo Produtos completo, PR #71). Todas já mescladas e fechadas na `main`.
-- **Em desenvolvimento**: #41/#42 (módulo Equipe/Funcionários) — branch `feature/equipe-funcionarios`, ainda sem código.
-- **Maior lacuna imediata**: com o middleware multi-tenant + RBAC (`requireTenant`, `MembroEstabelecimento.role`) já validado em produção (via #40 e reaproveitado no módulo Produtos), o próximo bloqueio natural depois de Equipe é o **módulo de Categorias (#46)** — reaproveita bastante estrutura do módulo Produto (N:N já existe no schema) — seguido de auditoria de estoque (#47–#49).
-- **Módulos com schema pronto mas zero código de aplicação**: equipe/funcionários (em andamento), categorias, auditoria de estoque, PDV, pagamentos, CRM, NFC-e, assinatura/billing.
+- **Pronto, pendente de merge**: #41/#42 (módulo Equipe/Funcionários completo: cadastro com vínculo direto ou convite por e-mail, listagem, edição de cargo e exclusão) — implementados em `feature/equipe-funcionarios`, com 132/132 testes passando e `tsc --noEmit` limpo. O fluxo de convite por e-mail (usuário ainda sem conta) foi uma extensão de escopo combinada com o usuário durante a implementação — issues #41/#42 atualizadas para refletir isso.
+- **Maior lacuna imediata**: com equipe e o middleware multi-tenant + RBAC (`requireTenant`, `MembroEstabelecimento.role`) resolvidos, o próximo bloqueio natural é o **módulo de Categorias (#46)** — reaproveita bastante estrutura do módulo Produto (N:N já existe no schema) — seguido de auditoria de estoque (#47–#49).
+- **Módulos com schema pronto mas zero código de aplicação**: categorias, auditoria de estoque, PDV, pagamentos, CRM, NFC-e, assinatura/billing.
 - **Integrações externas ainda não iniciadas**: AbacatePay para Pix/split no PDV (#52) e para billing de assinatura (#65–#67), e o emissor de NFC-e (Focus NFe/eNotas, #59–#61). A emissão de NFC-e (Fase 04) também passa a depender da Fase 05: o switch fiscal só pode ligar com plano Premium ativo (`Assinatura.status`), então #59 bloqueia em #64/#65 até existir uma assinatura real para testar contra.
