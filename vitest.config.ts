@@ -1,0 +1,19 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    fileParallelism: false,
+    setupFiles: ['./vitest.setup.ts'],
+    include: ['src/**/*.spec.ts', 'src/**/*.test.ts'],
+    exclude: ['node_modules', 'dist', 'generated'],
+    alias: {
+      "@/*": "./src/*",
+      "@prisma/*": "./generated/prisma/*"
+    }
+  },
+  resolve: {
+    tsconfigPaths: true,
+  }
+});

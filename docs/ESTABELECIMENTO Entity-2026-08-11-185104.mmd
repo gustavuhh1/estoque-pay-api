@@ -1,0 +1,204 @@
+---
+config:
+  layout: elk
+  theme: forest
+---
+erDiagram
+    ESTABELECIMENTO ||--o{ MEMBRO_ESTABELECIMENTO : has
+    USER ||--o{ MEMBRO_ESTABELECIMENTO : is_member
+    ESTABELECIMENTO ||--o| ASSINATURA : has
+    ESTABELECIMENTO ||--o{ CLIENTE : has
+    ESTABELECIMENTO ||--o{ PRODUTO : has
+    ESTABELECIMENTO ||--o{ CATEGORIA : has
+    ESTABELECIMENTO ||--o{ TURNO_CAIXA : has
+    ESTABELECIMENTO ||--o{ VENDA : has
+    ESTABELECIMENTO ||--o{ MOVIMENTACAO_ESTOQUE : has
+    ESTABELECIMENTO ||--o{ CUPOM : has
+    USER ||--o{ SESSION : has
+    USER ||--o{ ACCOUNT : has
+    USER ||--o{ TURNO_CAIXA : opens
+    USER ||--o{ VENDA : operates
+    USER ||--o{ VENDA : cancels
+    USER ||--o{ MOVIMENTACAO_ESTOQUE : makes
+    PRODUTO ||--o{ MOVIMENTACAO_ESTOQUE : has
+    CLIENTE ||--o{ VENDA : makes
+    CLIENTE ||--o{ CUPOM : redeems
+    TURNO_CAIXA ||--o{ VENDA : contains
+    PRODUTO }o--o{ CATEGORIA : belongs_to_many
+    PRODUTO ||--o{ ITEM_VENDA : sold_in
+    VENDA ||--o{ ITEM_VENDA : contains
+    VENDA ||--o| CUPOM : redeemed_in
+
+    ESTABELECIMENTO {
+        string id PK
+        string nome
+        string cnpj UK
+        string ie
+        string certificado_a1
+        string certificado_a1_senha
+        boolean emite_nfce
+        datetime criado_em
+    }
+    ASSINATURA {
+        string id PK
+        string estabelecimento_id FK,UK
+        string abacatepay_sub_id UK
+        string abacatepay_customer_id
+        string metodo_pagamento_id
+        enum status "TRIALING|ACTIVE|PAST_DUE|CANCELED"
+        enum tipo_plano "MENSAL|ANUAL"
+        datetime trial_expira_em
+        datetime periodo_atual_fim
+        datetime criado_em
+        datetime atualizado_em
+    }
+    USER {
+        string id PK
+        string name
+        string email UK
+        boolean emailVerified
+        string image
+        datetime createdAt
+        datetime updatedAt
+    }
+    MEMBRO_ESTABELECIMENTO {
+        string id PK
+        string userId FK
+        string estabelecimentoId FK
+        enum role "ADMIN|OWNER|MANAGER|CASHIER"
+        datetime createdAt
+        datetime updatedAt
+    }
+    SESSION {
+        string id PK
+        datetime expiresAt
+        string token UK
+        datetime createdAt
+        datetime updatedAt
+        string ipAddress
+        string userAgent
+        string userId FK
+    }
+    ACCOUNT {
+        string id PK
+        string accountId
+        string providerId
+        string userId FK
+        string accessToken
+        string refreshToken
+        string idToken
+        datetime accessTokenExpiresAt
+        datetime refreshTokenExpiresAt
+        string scope
+        string password
+        string issuer
+        datetime createdAt
+        datetime updatedAt
+    }
+    VERIFICATION {
+        string id PK
+        string identifier
+        string value
+        datetime expiresAt
+        datetime createdAt
+        datetime updatedAt
+    }
+    CLIENTE {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+        string cpf "unique por loja (estabelecimento_id + cpf)"
+        string telefone
+        datetime data_nascimento
+        string observacao
+        int pontos_fidelidade
+        datetime criado_em
+        datetime atualizado_em
+    }
+    CUPOM {
+        string id PK
+        string estabelecimento_id FK
+        string cliente_id FK "nulo = cupom genérico da loja"
+        string codigo "unique por loja (estabelecimento_id + codigo)"
+        decimal valor_desconto
+        datetime expira_em
+        datetime resgatado_em
+        string venda_id FK,UK
+        datetime criado_em
+    }
+    PRODUTO {
+        string id PK
+        string estabelecimento_id FK
+        string nome
+        string ean_gtin
+        enum tipo_medida "UNIDADE|FRACIONADO_KG"
+        decimal preco_custo
+        decimal preco_venda
+        decimal quantidade_atual
+        decimal quantidade_minima
+        string ncm
+        string cfop
+        boolean ativo
+        datetime criado_em
+        datetime atualizado_em
+    }
+    CATEGORIA {
+        string id PK
+        string estabelecimento_id FK
+        string nome "unique por loja (estabelecimento_id + nome)"
+        datetime criado_em
+        datetime atualizado_em
+    }
+    MOVIMENTACAO_ESTOQUE {
+        string id PK
+        string estabelecimento_id FK
+        string produto_id FK
+        string usuario_id FK
+        decimal quantidade
+        enum tipo "ENTRADA|SAIDA"
+        enum motivo "REABASTECIMENTO|VENDA|ESTORNO_VENDA|DESCARTE|PERDA|VENCIMENTO|AJUSTE_MANUAL"
+        string observacao
+        datetime criado_em
+    }
+    TURNO_CAIXA {
+        string id PK
+        string estabelecimento_id FK
+        string usuario_id FK
+        decimal valor_abertura
+        decimal valor_fechamento
+        enum status "ABERTO|FECHADO"
+        datetime aberto_em
+        datetime fechado_em
+    }
+    VENDA {
+        string id PK
+        string estabelecimento_id FK
+        string usuario_id FK
+        string cliente_id FK
+        string turno_id FK
+        decimal total_venda
+        enum metodo_pagamento "PIX_ABACATEPAY|DINHEIRO|DEBITO|CREDITO"
+        enum status_pagamento "PENDENTE|PAGO|CANCELADO"
+        string abacatepay_payment_id UK
+        decimal taxa_split
+        datetime pago_em
+        enum nfe_status "PROCESSANDO|AUTORIZADA|ERRO"
+        string nfe_url_pdf
+        string nfe_url_xml
+        string chave_de_acesso
+        string nfe_erro_mensagem
+        int nfe_tentativas
+        datetime nfe_enviada_em
+        datetime cancelada_em
+        string cancelada_por_id FK
+        datetime criada_em
+        datetime atualizada_em
+    }
+    ITEM_VENDA {
+        string id PK
+        string venda_id FK
+        string produto_id FK
+        decimal quantidade
+        decimal preco_unitario
+        decimal subtotal
+    }

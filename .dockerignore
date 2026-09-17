@@ -1,0 +1,15 @@
+node_modules
+dist
+generated
+.git
+.env
+.env.test
+*.md
+.vscode
+.claude
+.windsurf
+.agents
+.npm
+coverage
+docker-compose.yml
+src/**/tests

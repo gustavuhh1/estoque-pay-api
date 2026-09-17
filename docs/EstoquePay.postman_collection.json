@@ -1,0 +1,1890 @@
+{
+  "info": {
+    "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
+    "name": "EstoquePay",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 403, 409), com asserções `pm.test`. Cobre onboarding (#39) e listagem/contexto/edição da loja ativa (#40). A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n- **Produto**: fluxo feliz **e** cenários de erro (401, 400, 404, 409) do CRUD de produtos (RF01.1-RF06.6, issues #43/#44/#45), com asserções `pm.test`. Também auto-suficiente. **Limite**: os cenários fiscais RN09.1/RN09.2 (loja com NFC-e ligada) e o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) não são reproduzíveis só com HTTP — não existe rota para ligar `emite_nfce` (o PATCH de estabelecimento descarta esse campo) nem para vincular alguém como CASHIER (issue #41). Ambos já estão cobertos nos testes automatizados (`produto.e2e.spec.ts`).\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Multi-tenant (issue #40)**: as rotas `/estabelecimento/ativo` exigem o header `x-estabelecimento-id` (UUID da loja). Não existe endpoint de \"trocar de loja\" com estado no servidor — a API é stateless, quem decide qual loja está ativa é o cliente, a cada request.\n\n**Limite conhecido desta coleção**: os cenários de RBAC por cargo (Gestor bloqueado de editar CNPJ/Certificado A1, Caixa bloqueado de editar) não são reproduzíveis só com HTTP ainda, porque não existe rota para vincular alguém como MANAGER/CASHIER (isso é a issue #41). Esses cenários já estão cobertos nos testes automatizados, que inserem o vínculo direto no banco.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`, `ownerEmail2`, `ownerPassword2`, `cnpj2`, `estabelecimentoId2`. Não precisa editar à mão.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "19052417"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign Up - Cadastrar usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\",\n  \"name\": \"usuario\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sign In - Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password - Solicitar token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@email.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "forgot-password"]
+            },
+            "description": "Dispara o e-mail de redefinição via Brevo. O token NÃO volta na resposta (chega apenas por e-mail, no corpo da mensagem como \"Seu token é: ...\" e dentro do link). Copie-o e salve na variável de coleção `resetToken` para usar no request seguinte.\n\nRequer que o e-mail exista: o service lança erro para usuário não cadastrado."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password - Redefinir com token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"novaSenha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Consome o token recebido por e-mail e grava a nova senha. Preencha a variável `resetToken` com o valor vindo do e-mail antes de enviar.\n\nA senha precisa ter no mínimo 8 caracteres (`minPasswordLength` do better-auth e validação no DTO). O token expira em 1 hora e só pode ser usado uma vez.\n\nPara confirmar que funcionou, rode o **Sign In** com a nova senha."
+          },
+          "response": []
+        }
+      ],
+      "description": "Rotas de autenticação (prefixo /auth), registradas em src/modules/auth/routes.ts."
+    },
+    {
+      "name": "Estabelecimento",
+      "description": "Onboarding da loja (RF02.1/RF02.2, issue #39) e listagem/contexto/edição da loja ativa (RF03.1-RF04.2, issue #40), com asserções `pm.test` espelhando `src/modules/estabelecimento/tests/estabelecimento.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. Os scripts geram e-mail e CNPJ novos a cada execução, então dá para rodar quantas vezes quiser sem limpar o banco.\n\nA ordem importa: o `401` inicial roda antes de existir sessão, o primeiro `409` depende da loja criada pelo `201`, e o bloco de \"loja ativa\" no final depende do `estabelecimentoId` e da sessão do primeiro dono (o setup da segunda loja troca de dono temporariamente e devolve a sessão ao final).",
+      "item": [
+        {
+          "name": "401 - Criar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});",
+                  "",
+                  "pm.test('Resposta traz requestId (liga o ticket ao log)', function () {",
+                  "  pm.expect(pm.response.json().requestId).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja Anônima\",\n  \"cnpj\": \"11.222.333/0001-81\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "Primeiro request da pasta **de propósito**: roda antes do login, quando ainda não há sessão.\n\nProva que o `requireAuth` protege a rota. O body é válido de propósito — no ciclo do Fastify o `preHandler` roda **depois** da validação do body, então um body inválido devolveria 400 e mascararia o 401.\n\nSe este teste falhar com 201, provavelmente sobrou um cookie de sessão de uma execução anterior. O pre-request tenta limpar o cookie jar automaticamente; se o Postman bloquear, limpe os cookies de `localhost` na aba **Cookies**."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// E-mail unico: o banco de dev nao e truncado entre execucoes.",
+                  "pm.collectionVariables.set('ownerEmail', 'dono-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('ownerPassword', 'password123');",
+                  "",
+                  "// CNPJ valido e aleatorio: a API valida os dois digitos verificadores e o",
+                  "// CNPJ e unico na plataforma, entao um valor fixo so passaria na 1a rodada.",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]); // filial 0001",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('cnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'cnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"name\": \"Dono da Loja\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Cria o usuário que vai virar `OWNER` da loja.\n\nO pre-request gera, por execução:\n- **`ownerEmail`** único — o banco de dev não é limpo entre execuções, então um e-mail fixo daria `409 EMAIL_ALREADY_IN_USE` na segunda rodada.\n- **`cnpj`** válido e aleatório (com dígitos verificadores calculados) e sua versão mascarada em **`cnpjMascarado`** — o CNPJ é único na plataforma inteira, então um valor fixo só funcionaria uma vez."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  // Sem este Set-Cookie o login e inutil na pratica: toda rota protegida",
+                  "  // por requireAuth responderia 401.",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Autentica o dono e recebe o cookie de sessão (`better-auth.session_token`), que o cookie jar do Postman reenvia sozinho nos requests seguintes.\n\nO teste do `Set-Cookie` não é decoração: até a issue #39 o login respondia 200 **sem** cookie nenhum, e o cliente autenticava mas tomava 401 em qualquer rota protegida."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar estabelecimento (RF02.1 + RF02.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estabelecimento criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('CNPJ e normalizado (mascara entra, so digitos saem)', function () {",
+                  "  pm.expect(pm.response.json().estabelecimento.cnpj)",
+                  "    .to.eql(pm.collectionVariables.get('cnpj'));",
+                  "});",
+                  "",
+                  "pm.test('RF02.2: criador vinculado como OWNER', function () {",
+                  "  pm.expect(pm.response.json().membro.role).to.eql('OWNER');",
+                  "});",
+                  "",
+                  "pm.test('Dados do certificado A1 nao vazam na resposta', function () {",
+                  "  var loja = pm.response.json().estabelecimento;",
+                  "  pm.expect(loja).to.not.have.property('certificado_a1_senha');",
+                  "  pm.expect(loja).to.not.have.property('certificado_a1');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Mercearia do Zé\",\n  \"cnpj\": \"{{cnpjMascarado}}\",\n  \"ie\": \"123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "O caminho feliz do onboarding: cria a loja e vincula o usuário autenticado como `OWNER`, tudo na mesma `$transaction`.\n\nEnvia o CNPJ **com máscara** de propósito, para provar a normalização: o que volta (e o que fica no banco) são só os 14 dígitos. Sem isso, `11.222.333/0001-81` e `11222333000181` virariam duas lojas e o `@unique` do CNPJ não protegeria nada.\n\n`ie` é opcional. `emite_nfce` **não é aceito nesta rota** — nasce sempre `false`: ligar o switch fiscal depende de um pre-check de conformidade (Certificado A1, CNPJ/IE, produtos com NCM/CFOP e plano Premium ativo) que ainda não existe no onboarding."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - CNPJ já cadastrado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 em CNPJ duplicado', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e CNPJ_ALREADY_IN_USE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('CNPJ_ALREADY_IN_USE');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo em conflito (para o form destacar)', function () {",
+                  "  pm.expect(pm.response.json().details.field).to.eql('cnpj');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja Duplicada\",\n  \"cnpj\": \"{{cnpj}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "Repete o CNPJ criado no request anterior, agora **sem máscara** — a normalização precisa reconhecer que é o mesmo CNPJ e barrar.\n\nO CNPJ é único na plataforma inteira, não por usuário: ninguém pode recadastrar uma loja que já existe. O caminho certo para entrar numa loja alheia é ser convidado pelo dono."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Sem nome",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 com dados incompletos', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo nome em details.issues', function () {",
+                  "  var campos = pm.response.json().details.issues.map(function (i) { return i.field; });",
+                  "  pm.expect(campos).to.include('nome');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "Dados incompletos: o schema Zod da rota rejeita antes de chegar no handler, e o error-handler traduz para o envelope padrão da API.\n\n`details.issues` traz um item por campo inválido, no formato `{ field, message }` — é o que o formulário usa para marcar o campo errado sem parsear texto."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - CNPJ inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para CNPJ invalido', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo cnpj em details.issues', function () {",
+                  "  var campos = pm.response.json().details.issues.map(function (i) { return i.field; });",
+                  "  pm.expect(campos).to.include('cnpj');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja CNPJ Falso\",\n  \"cnpj\": \"11.111.111/1111-11\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "`11.111.111/1111-11` passa na conta do módulo 11, mas não existe na Receita — é o placeholder clássico digitado em formulário. A validação rejeita sequências de dígitos repetidos como caso especial.\n\nTrocando por um CNPJ com dígito verificador errado (ex: mudar o último dígito de um CNPJ válido) o resultado é o mesmo 400."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Listar minhas lojas (RF03.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lista retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('A loja criada aparece na lista, com o cargo OWNER', function () {",
+                  "  var lojas = pm.response.json();",
+                  "  var minhaLoja = lojas.find(function (loja) {",
+                  "    return loja.id === pm.collectionVariables.get('estabelecimentoId');",
+                  "  });",
+                  "  pm.expect(minhaLoja).to.not.be.undefined;",
+                  "  pm.expect(minhaLoja.role).to.eql('OWNER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "RF03.1: lista as lojas onde o usuário autenticado (dono da sessão atual) tem vínculo, cada uma com o cargo dele nela. Não depende de header de tenant — é a rota que alimenta a tela de \"escolher loja\"."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Ver loja ativa (RF03.2 + RF04.1 leitura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Dados da loja ativa retornados (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Traz o cargo do usuario nesta loja', function () {",
+                  "  pm.expect(pm.response.json().role).to.eql('OWNER');",
+                  "});",
+                  "",
+                  "pm.test('Nunca expoe certificado_a1_senha', function () {",
+                  "  pm.expect(pm.response.json()).to.not.have.property('certificado_a1_senha');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "RF03.2 (entrar no contexto de uma loja) + RF04.1 (visualizar dados). O header `x-estabelecimento-id` É a troca de contexto — não existe endpoint de \"selecionar loja\" com estado no servidor (a API é stateless: quem decide qual loja está ativa é o cliente, a cada request)."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Ver loja ativa sem o header",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 sem o header de tenant', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e TENANT_HEADER_REQUIRED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('TENANT_HEADER_REQUIRED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "Sem `x-estabelecimento-id` o requireTenant nem chega a consultar o vínculo — rejeita direto com 400, antes do 403."
+          },
+          "response": []
+        },
+        {
+          "name": "403 - Ver loja ativa sem vínculo (Falha 1 da issue #40)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 403 sem vinculo com a loja', function () {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e TENANT_ACCESS_DENIED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('TENANT_ACCESS_DENIED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "00000000-0000-0000-0000-000000000000"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "UUID nulo de propósito: não existe (nem precisa existir) MembroEstabelecimento nenhum apontando pra ele, então o requireTenant barra igual barraria pra uma loja de outro dono.\n\n**Limite desta coleção**: não há ainda rota HTTP para vincular alguém como MANAGER/CASHIER (isso é a issue #41 — Cadastro de Funcionários), então os cenários \"Gestor bloqueado em campo crítico\" e \"Caixa bloqueado de editar\" (Falha 2 da #40) não dá pra reproduzir só com Postman. Eles já estão cobertos nos testes automatizados (`estabelecimento.spec.ts` / `estabelecimento.e2e.spec.ts`), que inserem o vínculo direto no banco via Prisma."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Atualizar loja ativa com body vazio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 com body vazio', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "O `.refine()` do schema de update exige ao menos um campo — evita um PATCH que não faz nada e ainda assim responde 200."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Atualizar loja ativa com CNPJ inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para CNPJ invalido', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"11.111.111/1111-11\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "Mesma validação de dígito verificador do create, reaplicada no update."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Atualizar loja ativa (RF04.1 escrita / RF04.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Atualizacao salva (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Nome foi atualizado', function () {",
+                  "  pm.expect(pm.response.json().nome).to.eql('Mercearia do Zé - Filial Centro');",
+                  "});",
+                  "",
+                  "pm.test('emite_nfce continua false mesmo mandando true no payload', function () {",
+                  "  // RN01/RN01.1 (issue #59): ligar o switch fiscal exige um pre-check que",
+                  "  // ainda nao existe, entao esta rota nunca aceita o campo.",
+                  "  pm.expect(pm.response.json().emite_nfce).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Mercearia do Zé - Filial Centro\",\n  \"emite_nfce\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "Requester é o OWNER (dono da sessão ativa), então tem acesso total. O `emite_nfce: true` no payload é de propósito — prova que o Zod descarta o campo (não está no schema de update) em vez de travar com 400 ou aceitar silenciosamente."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Segunda loja (outro dono, para o teste de 409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('ownerEmail2', 'dono2-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('ownerPassword2', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "pm.collectionVariables.set('cnpj2', base.concat(dv1, dv2).join(''));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Segundo dono cadastrado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail2}}\",\n  \"name\": \"Segundo Dono\",\n  \"password\": \"{{ownerPassword2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Precisa de um segundo dono + uma segunda loja de verdade (com CNPJ distinto) só para o próximo request provar o 409 — CNPJ duplicado é uma checagem de banco (`@unique`), não dá pra simular sem uma segunda linha real na tabela."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login e criação da segunda loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login do segundo dono (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail2}}\",\n  \"password\": \"{{ownerPassword2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Troca o cookie de sessão do jar para o segundo dono — só pelo tempo deste request e do próximo (criação da segunda loja). Depois disso os requests desta pasta voltam a assumir o cookie do primeiro dono, então esta é a ÚLTIMA vez que o segundo dono é usado."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar segunda loja (setup do teste de 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Segunda loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estabelecimentoId2', pm.response.json().estabelecimento.id);",
+                  "}",
+                  "",
+                  "// A partir daqui os requests seguintes desta pasta precisam voltar a",
+                  "// autenticar como o PRIMEIRO dono. Como o Postman guarda cookie por",
+                  "// host (nao por request), o login abaixo re-loga o dono 1 no MESMO jar.",
+                  "pm.sendRequest({",
+                  "  url: pm.collectionVariables.get('baseUrl') + '/auth/login',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: {",
+                  "    mode: 'raw',",
+                  "    raw: JSON.stringify({",
+                  "      email: pm.collectionVariables.get('ownerEmail'),",
+                  "      password: pm.collectionVariables.get('ownerPassword'),",
+                  "    }),",
+                  "  },",
+                  "}, function (err, res) {",
+                  "  pm.test('Sessao devolvida para o primeiro dono', function () {",
+                  "    pm.expect(err).to.be.null;",
+                  "    pm.expect(res.code).to.eql(200);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja do Segundo Dono\",\n  \"cnpj\": \"{{cnpj2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "Loja separada, com CNPJ próprio (`cnpj2`), pertencente ao segundo dono. O script de teste já devolve a sessão do jar para o primeiro dono ao final, para não quebrar o resto da pasta."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Atualizar loja ativa com CNPJ de outra loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 ao tentar usar CNPJ de outra loja', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e CNPJ_ALREADY_IN_USE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('CNPJ_ALREADY_IN_USE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento/ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento", "ativo"]
+            },
+            "description": "A sessão volta a ser a do primeiro dono (o request anterior já cuidou disso). Tenta colocar na loja 1 (`estabelecimentoId`) o CNPJ que já pertence à loja 2 (`cnpj2`) — o `@unique` do banco é quem decide, igual no create."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Produto",
+      "description": "CRUD de produtos da loja ativa (RF01.1-RF06.6), com asserções `pm.test` espelhando `src/modules/produto/tests/produto.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono e uma loja próprios desta pasta (não depende da pasta Estabelecimento ter rodado antes).\n\n**Limite desta coleção**: RN09.1 (produto nasce inativo se faltar NCM/CFOP numa loja com NFC-e ligada) e RN09.2 (trava de reativação) não são reproduzíveis só com HTTP, porque não existe rota para ligar `emite_nfce` de uma loja — o PATCH `/estabelecimento/ativo` descarta esse campo de propósito (ver pasta Estabelecimento). Pelo mesmo motivo da pasta anterior, o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) também não é reproduzível (falta rota para vincular CASHIER, issue #41). Todos esses cenários já estão cobertos nos testes automatizados.",
+      "item": [
+        {
+          "name": "401 - Criar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior (ex: da pasta Estabelecimento) contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Produto Anonimo\",\n  \"preco_custo\": 1,\n  \"preco_venda\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Body válido de propósito (mesmo motivo do 401 da pasta Estabelecimento): o preHandler `requireAuth` roda depois da validação do body, então um body inválido devolveria 400 e mascararia o 401.\n\nNem chega a precisar do header `x-estabelecimento-id` — sem sessão, o `requireAuth` barra antes do `requireTenant`."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('produtoOwnerEmail', 'dono-produto-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('produtoOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('produtoCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'produtoCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{produtoOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Produtos\",\n  \"password\": \"{{produtoOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup da pasta Estabelecimento."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{produtoOwnerEmail}}\",\n  \"password\": \"{{produtoOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('produtoEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Produtos\",\n  \"cnpj\": \"{{produtoCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            },
+            "description": "Nasce sem NFC-e (`emite_nfce: false`), como toda loja recém-criada — por isso os produtos desta pasta nascem sempre `ativo: true` (RN09.1 só força inativo quando a loja emite NFC-e)."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar produto (RF01.1)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Codigo de barras unico por execucao, para o teste de 409 mais abaixo",
+                  "// reutilizar de proposito e nao colidir entre rodadas.",
+                  "pm.collectionVariables.set('produtoEanGtin', '789' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('RN09.1: nasce ativo porque a loja nao emite NFC-e', function () {",
+                  "  pm.expect(pm.response.json().ativo).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test('Pertence a loja correta', function () {",
+                  "  pm.expect(pm.response.json().estabelecimento_id)",
+                  "    .to.eql(pm.collectionVariables.get('produtoEstabelecimentoId'));",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('produtoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Refrigerante Lata\",\n  \"ean_gtin\": \"{{produtoEanGtin}}\",\n  \"tipo_medida\": \"UNIDADE\",\n  \"preco_custo\": 3,\n  \"preco_venda\": 6,\n  \"quantidade_atual\": 50,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Caminho feliz do cadastro. `ncm`/`cfop` ficam de fora de propósito — não fazem diferença aqui porque a loja não emite NFC-e (RN09.1 não entra em ação)."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Criar produto com preço de venda inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para preco de venda invalido', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Produto Invalido\",\n  \"preco_custo\": 1,\n  \"preco_venda\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "`preco_venda` precisa ser maior que zero — o schema Zod rejeita antes de chegar no service."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Criar produto sem o header x-estabelecimento-id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 sem o header de tenant', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e TENANT_HEADER_REQUIRED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('TENANT_HEADER_REQUIRED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Produto Sem Loja\",\n  \"preco_custo\": 1,\n  \"preco_venda\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Sem `x-estabelecimento-id` o `requireTenant` rejeita direto com 400, antes de checar vínculo."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Criar produto com EAN/GTIN duplicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 em codigo de barras duplicado', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e EAN_GTIN_ALREADY_IN_USE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('EAN_GTIN_ALREADY_IN_USE');",
+                  "});",
+                  "",
+                  "pm.test('Aponta o campo em conflito', function () {",
+                  "  pm.expect(pm.response.json().details.field).to.eql('ean_gtin');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Outro Produto\",\n  \"ean_gtin\": \"{{produtoEanGtin}}\",\n  \"preco_custo\": 1,\n  \"preco_venda\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Reusa o `ean_gtin` do produto criado no request \"201 - Criar produto\". O código de barras é único por loja (não na plataforma inteira, ao contrário do CNPJ)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Listar produtos (RF02.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lista retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('O produto criado aparece na lista', function () {",
+                  "  var produtos = pm.response.json();",
+                  "  var meuProduto = produtos.find(function (produto) {",
+                  "    return produto.id === pm.collectionVariables.get('produtoId');",
+                  "  });",
+                  "  pm.expect(meuProduto).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "RF02.2: lista todos os produtos da loja ativa, incluindo inativos (mas nunca os excluídos). Caixa não tem acesso a esta rota de gestão."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Editar produto (RF03.3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Atualizacao salva (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Nome e preco foram atualizados', function () {",
+                  "  pm.expect(pm.response.json().nome).to.eql('Refrigerante Lata - Editado');",
+                  "  pm.expect(pm.response.json().preco_venda).to.eql(7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Refrigerante Lata - Editado\",\n  \"preco_venda\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}"]
+            },
+            "description": "Não aceita `ativo` neste endpoint (ver rotas `/inativar` e `/reativar` mais abaixo)."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Editar produto com body vazio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 com body vazio', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}"]
+            },
+            "description": "O `.refine()` do schema de update exige ao menos um campo — mesmo padrão do PATCH de estabelecimento."
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Editar produto inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para produto inexistente', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e NOT_FOUND', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Fantasma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "00000000-0000-0000-0000-000000000000"]
+            },
+            "description": "UUID nulo de propósito — mesmo raciocínio do 403 de vínculo na pasta Estabelecimento, mas aqui o vínculo com a loja existe (403 não se aplica) e quem falha é a busca do produto (404)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Inativar produto (RF05.5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto inativado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('ativo passa para false', function () {",
+                  "  pm.expect(pm.response.json().ativo).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}/inativar",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}", "inativar"]
+            },
+            "description": "RF05.5: sempre permitido, sem trava fiscal — a trava (RN09.2) só existe na reativação."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Reativar produto (RF06.6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto reativado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('ativo volta para true', function () {",
+                  "  pm.expect(pm.response.json().ativo).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}/reativar",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}", "reativar"]
+            },
+            "description": "RN09.2 não entra em ação aqui porque esta loja não emite NFC-e — a trava de reativação (403 `PRODUTO_SEM_CONFORMIDADE_FISCAL`) já está coberta nos testes automatizados, que criam a loja com `emite_nfce: true` direto no banco (não há rota HTTP para isso ainda)."
+          },
+          "response": []
+        },
+        {
+          "name": "204 - Excluir produto nunca vendido (RF04.4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto excluido (204)', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}"]
+            },
+            "description": "Este produto nunca teve item de venda, então a exclusão é permanente (hard delete). O cenário de soft delete (produto já vendido) depende de criar uma Venda, o que ainda não tem rota HTTP — coberto em `produto.e2e.spec.ts`."
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Excluir produto já excluído",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para produto ja excluido', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e NOT_FOUND', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{produtoEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto/{{produtoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto", "{{produtoId}}"]
+            },
+            "description": "Reusa o mesmo `produtoId` do request anterior — prova que o hard delete foi mesmo permanente."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3333",
+      "description": "URL base da API rodando localmente (npm run dev)"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "description": "Token de redefinição de senha recebido por e-mail. Preencha manualmente após rodar o Forgot Password."
+    },
+    {
+      "key": "ownerEmail",
+      "value": ""
+    },
+    {
+      "key": "ownerPassword",
+      "value": ""
+    },
+    {
+      "key": "cnpj",
+      "value": ""
+    },
+    {
+      "key": "cnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "estabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "ownerEmail2",
+      "value": ""
+    },
+    {
+      "key": "ownerPassword2",
+      "value": ""
+    },
+    {
+      "key": "cnpj2",
+      "value": ""
+    },
+    {
+      "key": "estabelecimentoId2",
+      "value": ""
+    },
+    {
+      "key": "produtoOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "produtoOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "produtoCnpj",
+      "value": ""
+    },
+    {
+      "key": "produtoCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "produtoEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "produtoEanGtin",
+      "value": ""
+    },
+    {
+      "key": "produtoId",
+      "value": ""
+    }
+  ]
+}
