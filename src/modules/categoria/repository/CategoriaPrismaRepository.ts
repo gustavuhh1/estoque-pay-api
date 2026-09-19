@@ -39,13 +39,7 @@ export class CategoriaPrismaRepository implements ICategoriaRepository {
   async update(id: string, data: UpdateCategoriaParams) {
     return this.prisma.categoria.update({
       where: { id },
-      data: {
-        ...(data.nome !== undefined && { nome: data.nome }),
-        // `set` substitui o conjunto inteiro de produtos vinculados.
-        ...(data.produto_ids !== undefined && {
-          produtos: { set: data.produto_ids.map((id) => ({ id })) },
-        }),
-      },
+      data: { nome: data.nome },
       include: { produtos: true },
     })
   }
@@ -74,6 +68,22 @@ export class CategoriaPrismaRepository implements ICategoriaRepository {
         estabelecimento_id: estabelecimentoId,
         deletado_em: null,
       },
+    })
+  }
+
+  async addProdutos(id: string, produtoIds: string[]) {
+    return this.prisma.categoria.update({
+      where: { id },
+      data: { produtos: { connect: produtoIds.map((produtoId) => ({ id: produtoId })) } },
+      include: { produtos: true },
+    })
+  }
+
+  async removeProdutos(id: string, produtoIds: string[]) {
+    return this.prisma.categoria.update({
+      where: { id },
+      data: { produtos: { disconnect: produtoIds.map((produtoId) => ({ id: produtoId })) } },
+      include: { produtos: true },
     })
   }
 }

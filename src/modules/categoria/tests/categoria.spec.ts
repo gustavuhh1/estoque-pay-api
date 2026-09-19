@@ -110,7 +110,7 @@ describe("CategoriaService", () => {
     })
   })
 
-  describe("update (#46 — RF09.3 / RF11.5)", () => {
+  describe("update (#46 — RF09.3)", () => {
     it("altera o nome e persiste", async () => {
       const loja = await criarEstabelecimento()
       const categoria = await sut.create(loja.id, "OWNER", { nome: "Bebidas" })
@@ -118,23 +118,6 @@ describe("CategoriaService", () => {
       const atualizada = await sut.update(categoria.id, loja.id, "OWNER", { nome: "Bebidas Frias" })
 
       expect(atualizada.nome).toBe("Bebidas Frias")
-    })
-
-    it("substitui o conjunto de produtos vinculados (set, não incremento)", async () => {
-      const loja = await criarEstabelecimento()
-      const produtoA = await criarProdutoDireto(loja.id, { nome: "Produto A" })
-      const produtoB = await criarProdutoDireto(loja.id, { nome: "Produto B" })
-      const categoria = await sut.create(loja.id, "OWNER", {
-        nome: "Bebidas",
-        produto_ids: [produtoA.id],
-      })
-
-      const atualizada = await sut.update(categoria.id, loja.id, "OWNER", {
-        produto_ids: [produtoB.id],
-      })
-
-      expect(atualizada.produtos).toHaveLength(1)
-      expect(atualizada.produtos[0]?.id).toBe(produtoB.id)
     })
 
     it("lança NotFoundError ao editar categoria de outra loja", async () => {
@@ -155,6 +138,112 @@ describe("CategoriaService", () => {
       await expect(
         sut.update(alvo.id, loja.id, "OWNER", { nome: "Bebidas" })
       ).rejects.toBeInstanceOf(CategoriaNomeAlreadyInUseError)
+    })
+  })
+
+  describe("addProdutos (#46 — RF11.5, connect)", () => {
+    it("adiciona produtos sem afetar os já vinculados", async () => {
+      const loja = await criarEstabelecimento()
+      const produtoA = await criarProdutoDireto(loja.id, { nome: "Produto A" })
+      const produtoB = await criarProdutoDireto(loja.id, { nome: "Produto B" })
+      const categoria = await sut.create(loja.id, "OWNER", {
+        nome: "Bebidas",
+        produto_ids: [produtoA.id],
+      })
+
+      const atualizada = await sut.addProdutos(categoria.id, loja.id, "OWNER", [produtoB.id])
+
+      const idsVinculados = atualizada.produtos.map((produto) => produto.id).sort()
+      expect(idsVinculados).toEqual([produtoA.id, produtoB.id].sort())
+    })
+
+    it("lança NotFoundError se a categoria não existe nesta loja", async () => {
+      const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
+      const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      const categoriaDaLojaB = await sut.create(lojaB.id, "OWNER", { nome: "Frios" })
+      const produto = await criarProdutoDireto(lojaA.id)
+
+      await expect(
+        sut.addProdutos(categoriaDaLojaB.id, lojaA.id, "OWNER", [produto.id])
+      ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it("lança NotFoundError se o produto não pertence à loja", async () => {
+      const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
+      const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      const categoria = await sut.create(lojaA.id, "OWNER", { nome: "Bebidas" })
+      const produtoDaLojaB = await criarProdutoDireto(lojaB.id)
+
+      await expect(
+        sut.addProdutos(categoria.id, lojaA.id, "OWNER", [produtoDaLojaB.id])
+      ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it("CASHIER não pode adicionar produtos", async () => {
+      const loja = await criarEstabelecimento()
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await sut.create(loja.id, "OWNER", { nome: "Bebidas" })
+
+      await expect(
+        sut.addProdutos(categoria.id, loja.id, "CASHIER", [produto.id])
+      ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+  })
+
+  describe("removeProdutos (#46 — RF11.5 / RN08, disconnect)", () => {
+    it("remove só os produtos informados, sem afetar os demais nem o Produto em si", async () => {
+      const loja = await criarEstabelecimento()
+      const produtoA = await criarProdutoDireto(loja.id, { nome: "Produto A" })
+      const produtoB = await criarProdutoDireto(loja.id, { nome: "Produto B" })
+      const categoria = await sut.create(loja.id, "OWNER", {
+        nome: "Bebidas",
+        produto_ids: [produtoA.id, produtoB.id],
+      })
+
+      const atualizada = await sut.removeProdutos(categoria.id, loja.id, "OWNER", [produtoA.id])
+
+      expect(atualizada.produtos).toHaveLength(1)
+      expect(atualizada.produtos[0]?.id).toBe(produtoB.id)
+
+      const produtoNoBanco = await prisma.produto.findUnique({ where: { id: produtoA.id } })
+      expect(produtoNoBanco).not.toBeNull()
+    })
+
+    it("é idempotente: remover um produto que não está vinculado não lança erro", async () => {
+      const loja = await criarEstabelecimento()
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await sut.create(loja.id, "OWNER", { nome: "Bebidas" })
+
+      const atualizada = await sut.removeProdutos(categoria.id, loja.id, "OWNER", [produto.id])
+
+      expect(atualizada.produtos).toHaveLength(0)
+    })
+
+    it("lança NotFoundError se a categoria não existe nesta loja", async () => {
+      const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
+      const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      const produto = await criarProdutoDireto(lojaB.id)
+      const categoriaDaLojaB = await sut.create(lojaB.id, "OWNER", {
+        nome: "Frios",
+        produto_ids: [produto.id],
+      })
+
+      await expect(
+        sut.removeProdutos(categoriaDaLojaB.id, lojaA.id, "OWNER", [produto.id])
+      ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it("CASHIER não pode remover produtos", async () => {
+      const loja = await criarEstabelecimento()
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await sut.create(loja.id, "OWNER", {
+        nome: "Bebidas",
+        produto_ids: [produto.id],
+      })
+
+      await expect(
+        sut.removeProdutos(categoria.id, loja.id, "CASHIER", [produto.id])
+      ).rejects.toBeInstanceOf(ForbiddenError)
     })
   })
 

@@ -203,31 +203,6 @@ describe("Categoria Module - E2E (DB Real)", () => {
       expect(response.json().nome).toBe("Bebidas Frias")
     })
 
-    it("200 — substitui os produtos vinculados via produto_ids", async () => {
-      const { user, cookie } = await createAuthenticatedUser()
-      const loja = await criarEstabelecimento()
-      await criarMembro(user.id, loja.id, "OWNER")
-      const produtoA = await criarProdutoDireto(loja.id, "Produto A")
-      const produtoB = await criarProdutoDireto(loja.id, "Produto B")
-      const categoria = await prisma.categoria.create({
-        data: {
-          estabelecimento_id: loja.id,
-          nome: "Bebidas",
-          produtos: { connect: { id: produtoA.id } },
-        },
-      })
-
-      const response = await app.inject({
-        method: "PATCH",
-        url: `/categoria/${categoria.id}`,
-        headers: { cookie, "x-estabelecimento-id": loja.id },
-        payload: { produto_ids: [produtoB.id] },
-      })
-
-      expect(response.statusCode).toBe(200)
-      expect(response.json().produtos).toEqual([{ id: produtoB.id, nome: produtoB.nome }])
-    })
-
     it("404 — categoria pertence a outra loja", async () => {
       const { user, cookie } = await createAuthenticatedUser()
       const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
@@ -263,6 +238,190 @@ describe("Categoria Module - E2E (DB Real)", () => {
       })
 
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe("POST /categoria/:id/produtos (#46 — RF11.5, connect)", () => {
+    it("200 — adiciona produtos sem afetar os já vinculados", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "OWNER")
+      const produtoA = await criarProdutoDireto(loja.id, "Produto A")
+      const produtoB = await criarProdutoDireto(loja.id, "Produto B")
+      const categoria = await prisma.categoria.create({
+        data: {
+          estabelecimento_id: loja.id,
+          nome: "Bebidas",
+          produtos: { connect: { id: produtoA.id } },
+        },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [produtoB.id] },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const idsVinculados = response
+        .json()
+        .produtos.map((produto: { id: string }) => produto.id)
+        .sort()
+      expect(idsVinculados).toEqual([produtoA.id, produtoB.id].sort())
+    })
+
+    it("404 — categoria pertence a outra loja", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
+      const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      await criarMembro(user.id, lojaA.id, "OWNER")
+      const produto = await criarProdutoDireto(lojaA.id)
+      const categoriaDaLojaB = await prisma.categoria.create({
+        data: { estabelecimento_id: lojaB.id, nome: "Frios" },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/categoria/${categoriaDaLojaB.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": lojaA.id },
+        payload: { produto_ids: [produto.id] },
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+
+    it("404 — produto_id não pertence à loja", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const lojaA = await criarEstabelecimento(CNPJ_VALIDO)
+      const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      await criarMembro(user.id, lojaA.id, "OWNER")
+      const produtoDaLojaB = await criarProdutoDireto(lojaB.id)
+      const categoria = await prisma.categoria.create({
+        data: { estabelecimento_id: lojaA.id, nome: "Bebidas" },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": lojaA.id },
+        payload: { produto_ids: [produtoDaLojaB.id] },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json().code).toBe("PRODUTO_NAO_ENCONTRADO")
+    })
+
+    it("400 — produto_ids vazio", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "OWNER")
+      const categoria = await prisma.categoria.create({
+        data: { estabelecimento_id: loja.id, nome: "Bebidas" },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [] },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it("403 — CASHIER não pode adicionar produtos", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "CASHIER")
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await prisma.categoria.create({
+        data: { estabelecimento_id: loja.id, nome: "Bebidas" },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [produto.id] },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json().code).toBe("ROLE_CANNOT_MANAGE_CATEGORIAS")
+    })
+  })
+
+  describe("DELETE /categoria/:id/produtos (#46 — RF11.5 / RN08, disconnect)", () => {
+    it("200 — remove só os produtos informados, sem apagar o Produto em si", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "OWNER")
+      const produtoA = await criarProdutoDireto(loja.id, "Produto A")
+      const produtoB = await criarProdutoDireto(loja.id, "Produto B")
+      const categoria = await prisma.categoria.create({
+        data: {
+          estabelecimento_id: loja.id,
+          nome: "Bebidas",
+          produtos: { connect: [{ id: produtoA.id }, { id: produtoB.id }] },
+        },
+      })
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [produtoA.id] },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().produtos).toEqual([{ id: produtoB.id, nome: produtoB.nome }])
+
+      const produtoNoBanco = await prisma.produto.findUnique({ where: { id: produtoA.id } })
+      expect(produtoNoBanco).not.toBeNull()
+    })
+
+    it("200 — é idempotente: remover produto não vinculado não lança erro", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "OWNER")
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await prisma.categoria.create({
+        data: { estabelecimento_id: loja.id, nome: "Bebidas" },
+      })
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [produto.id] },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().produtos).toEqual([])
+    })
+
+    it("403 — CASHIER não pode remover produtos", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento()
+      await criarMembro(user.id, loja.id, "CASHIER")
+      const produto = await criarProdutoDireto(loja.id)
+      const categoria = await prisma.categoria.create({
+        data: {
+          estabelecimento_id: loja.id,
+          nome: "Bebidas",
+          produtos: { connect: { id: produto.id } },
+        },
+      })
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/categoria/${categoria.id}/produtos`,
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { produto_ids: [produto.id] },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json().code).toBe("ROLE_CANNOT_MANAGE_CATEGORIAS")
     })
   })
 

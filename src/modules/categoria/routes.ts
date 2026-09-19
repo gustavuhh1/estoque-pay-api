@@ -12,6 +12,7 @@ import {
   categoriaResponseSchema,
   createCategoriaSchema,
   listCategoriasResponseSchema,
+  produtoIdsSchema,
   updateCategoriaSchema,
 } from "./dto/categoria.dto"
 
@@ -100,8 +101,8 @@ export async function categoriaRoutes(app: FastifyInstance) {
       preHandler: [requireAuth, requireTenant],
       schema: {
         tags: ["Categoria"],
-        summary: "Edita o nome e/ou os produtos vinculados de uma categoria",
-        description: `RF09.3 / RF11.5. ${TENANT_HEADER_DOC} Quando \`produto_ids\` é informado, substitui o conjunto inteiro de produtos vinculados (não é incremental).`,
+        summary: "Edita o nome de uma categoria",
+        description: `RF09.3. ${TENANT_HEADER_DOC} Só o nome — o vínculo com produtos tem rotas próprias (POST/DELETE /:id/produtos, RF11.5).`,
         security: [{ cookieAuth: [] }],
         params: categoriaParamsSchema,
         body: updateCategoriaSchema,
@@ -117,7 +118,7 @@ export async function categoriaRoutes(app: FastifyInstance) {
             "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_CATEGORIAS)"
           ),
           404: errorResponseSchema.describe(
-            "Categoria não encontrada nesta loja (code: NOT_FOUND) ou produto_id inválido (code: PRODUTO_NAO_ENCONTRADO)"
+            "Categoria não encontrada nesta loja (code: NOT_FOUND)"
           ),
           409: errorResponseSchema.describe(
             "Nome já usado por outra categoria desta loja (code: CATEGORIA_NOME_ALREADY_IN_USE)"
@@ -126,6 +127,68 @@ export async function categoriaRoutes(app: FastifyInstance) {
       },
     },
     async (req, res) => categoriaController.update(req, res)
+  )
+
+  route.post(
+    "/:id/produtos",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Categoria"],
+        summary: "Adiciona produtos ao vínculo N:N da categoria",
+        description: `RF11.5. ${TENANT_HEADER_DOC} Incremental (Prisma \`connect\`): só adiciona os produtos informados, sem afetar os demais já vinculados.`,
+        security: [{ cookieAuth: [] }],
+        params: categoriaParamsSchema,
+        body: produtoIdsSchema,
+        response: {
+          200: categoriaResponseSchema,
+          400: errorResponseSchema.describe(
+            "Dados inválidos (code: VALIDATION_ERROR)"
+          ),
+          401: errorResponseSchema.describe(
+            "Sessão ausente ou inválida (code: UNAUTHORIZED)"
+          ),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_CATEGORIAS)"
+          ),
+          404: errorResponseSchema.describe(
+            "Categoria não encontrada nesta loja (code: NOT_FOUND) ou produto_id inválido (code: PRODUTO_NAO_ENCONTRADO)"
+          ),
+        },
+      },
+    },
+    async (req, res) => categoriaController.addProdutos(req, res)
+  )
+
+  route.delete(
+    "/:id/produtos",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Categoria"],
+        summary: "Remove produtos do vínculo N:N da categoria",
+        description: `RF11.5 / RN08. ${TENANT_HEADER_DOC} Incremental (Prisma \`disconnect\`): só remove o vínculo dos produtos informados — nunca apaga o Produto em si, nem afeta os demais vínculos da categoria.`,
+        security: [{ cookieAuth: [] }],
+        params: categoriaParamsSchema,
+        body: produtoIdsSchema,
+        response: {
+          200: categoriaResponseSchema,
+          400: errorResponseSchema.describe(
+            "Dados inválidos (code: VALIDATION_ERROR)"
+          ),
+          401: errorResponseSchema.describe(
+            "Sessão ausente ou inválida (code: UNAUTHORIZED)"
+          ),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_CATEGORIAS)"
+          ),
+          404: errorResponseSchema.describe(
+            "Categoria não encontrada nesta loja (code: NOT_FOUND) ou produto_id inválido (code: PRODUTO_NAO_ENCONTRADO)"
+          ),
+        },
+      },
+    },
+    async (req, res) => categoriaController.removeProdutos(req, res)
   )
 
   route.delete(

@@ -8,8 +8,7 @@ export interface CreateCategoriaParams {
 }
 
 export interface UpdateCategoriaParams {
-  nome?: string | undefined
-  produto_ids?: string[] | undefined
+  nome: string
 }
 
 export interface ICategoriaRepository {
@@ -20,7 +19,7 @@ export interface ICategoriaRepository {
     id: string,
     estabelecimentoId: string
   ): Promise<CategoriaComProdutos | null>
-  /** RF09.3 / RF11.5: atualização parcial (inclui substituir o vínculo N:N). */
+  /** RF09.3: atualização do nome. O vínculo N:N tem métodos próprios abaixo. */
   update(id: string, data: UpdateCategoriaParams): Promise<CategoriaComProdutos>
   existsNome(estabelecimentoId: string, nome: string, excludeId?: string): Promise<boolean>
   /**
@@ -30,4 +29,8 @@ export interface ICategoriaRepository {
   delete(id: string): Promise<void>
   /** Conta quantos dos ids informados são produtos de verdade desta loja (valida produto_ids). */
   countProdutosByIds(estabelecimentoId: string, produtoIds: string[]): Promise<number>
+  /** RF11.5: incremental (Prisma `connect`) — só adiciona, não afeta o resto do vínculo. */
+  addProdutos(id: string, produtoIds: string[]): Promise<CategoriaComProdutos>
+  /** RF11.5: incremental (Prisma `disconnect`) — só remove, não afeta o resto do vínculo. */
+  removeProdutos(id: string, produtoIds: string[]): Promise<CategoriaComProdutos>
 }

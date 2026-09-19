@@ -4,6 +4,7 @@ import {
   toCategoriaResponse,
   type CategoriaParams,
   type CreateCategoriaDTO,
+  type ProdutoIdsDTO,
   type UpdateCategoriaDTO,
 } from "../dto/categoria.dto"
 import { CategoriaService } from "../service/CategoriaService"
@@ -59,6 +60,44 @@ export class CategoriaController {
       request.membro.estabelecimentoId,
       request.membro.role,
       request.body
+    )
+
+    return reply.status(200).send(toCategoriaResponse(categoria))
+  }
+
+  /** RF11.5: adiciona produtos ao vínculo N:N (incremental — connect). */
+  async addProdutos(
+    request: FastifyRequest<{ Params: CategoriaParams; Body: ProdutoIdsDTO }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const categoria = await this.categoriaService.addProdutos(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.membro.role,
+      request.body.produto_ids
+    )
+
+    return reply.status(200).send(toCategoriaResponse(categoria))
+  }
+
+  /** RF11.5: remove produtos do vínculo N:N (incremental — disconnect). */
+  async removeProdutos(
+    request: FastifyRequest<{ Params: CategoriaParams; Body: ProdutoIdsDTO }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const categoria = await this.categoriaService.removeProdutos(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.membro.role,
+      request.body.produto_ids
     )
 
     return reply.status(200).send(toCategoriaResponse(categoria))

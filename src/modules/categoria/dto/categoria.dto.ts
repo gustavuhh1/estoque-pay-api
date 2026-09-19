@@ -8,25 +8,30 @@ export const createCategoriaSchema = z.object({
 })
 export type CreateCategoriaDTO = z.infer<typeof createCategoriaSchema>
 
-/**
- * RF09.3/RF11.5: atualização parcial. `produto_ids`, quando presente,
- * substitui o conjunto inteiro de produtos vinculados (Prisma `set`) — mais
- * simples e previsível de testar do que um incremento (connect-only).
- */
-export const updateCategoriaSchema = z
-  .object({
-    nome: z.string().trim().min(2).optional(),
-    produto_ids: z.array(z.uuid()).optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: "Informe ao menos um campo para atualizar.",
-  })
+/** RF09.3: só o nome — o vínculo com produtos tem rotas próprias (ver abaixo). */
+export const updateCategoriaSchema = z.object({
+  nome: z.string().trim().min(2, "O nome da categoria é obrigatório."),
+})
 export type UpdateCategoriaDTO = z.infer<typeof updateCategoriaSchema>
 
 export const categoriaParamsSchema = z.object({
   id: z.uuid(),
 })
 export type CategoriaParams = z.infer<typeof categoriaParamsSchema>
+
+/**
+ * RF11.5: corpo das rotas incrementais de vínculo (`POST`/`DELETE
+ * .../:id/produtos`). Ao contrário do antigo `produto_ids` do PATCH (que
+ * fazia `set` — substituía o conjunto inteiro), aqui cada chamada só
+ * adiciona (`connect`) ou remove (`disconnect`) os ids informados, sem
+ * afetar o resto do vínculo já existente. Evita que duas edições
+ * concorrentes na mesma categoria se sobrescrevam (last-write-wins) e não
+ * exige que o cliente conheça a lista completa atual só para mudar um item.
+ */
+export const produtoIdsSchema = z.object({
+  produto_ids: z.array(z.uuid()).min(1, "Informe ao menos um produto."),
+})
+export type ProdutoIdsDTO = z.infer<typeof produtoIdsSchema>
 
 const produtoResumoSchema = z.object({
   id: z.uuid(),

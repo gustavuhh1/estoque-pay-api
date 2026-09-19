@@ -69,7 +69,7 @@ export class CategoriaService {
     return this.categoriaRepository.findManyByEstabelecimento(estabelecimentoId)
   }
 
-  /** RF09.3 / RF11.5 */
+  /** RF09.3 */
   async update(id: string, estabelecimentoId: string, role: Role, data: UpdateCategoriaDTO) {
     this.garantirAcesso(role)
 
@@ -82,14 +82,9 @@ export class CategoriaService {
       throw new NotFoundError("Categoria não encontrada.")
     }
 
-    if (
-      data.nome &&
-      (await this.categoriaRepository.existsNome(estabelecimentoId, data.nome, id))
-    ) {
+    if (await this.categoriaRepository.existsNome(estabelecimentoId, data.nome, id)) {
       throw new CategoriaNomeAlreadyInUseError()
     }
-
-    await this.validarProdutoIds(estabelecimentoId, data.produto_ids)
 
     try {
       return await this.categoriaRepository.update(id, data)
@@ -103,6 +98,45 @@ export class CategoriaService {
 
       throw error
     }
+  }
+
+  /** RF11.5: incremental (connect) — só adiciona os produtos informados, não afeta o resto do vínculo. */
+  async addProdutos(id: string, estabelecimentoId: string, role: Role, produtoIds: string[]) {
+    this.garantirAcesso(role)
+
+    const categoria = await this.categoriaRepository.findByIdAndEstabelecimento(
+      id,
+      estabelecimentoId
+    )
+
+    if (!categoria) {
+      throw new NotFoundError("Categoria não encontrada.")
+    }
+
+    await this.validarProdutoIds(estabelecimentoId, produtoIds)
+
+    return this.categoriaRepository.addProdutos(id, [...new Set(produtoIds)])
+  }
+
+  /**
+   * RF11.5 / RN08: incremental (disconnect) — só remove os produtos
+   * informados, nunca o Produto em si nem o resto do vínculo.
+   */
+  async removeProdutos(id: string, estabelecimentoId: string, role: Role, produtoIds: string[]) {
+    this.garantirAcesso(role)
+
+    const categoria = await this.categoriaRepository.findByIdAndEstabelecimento(
+      id,
+      estabelecimentoId
+    )
+
+    if (!categoria) {
+      throw new NotFoundError("Categoria não encontrada.")
+    }
+
+    await this.validarProdutoIds(estabelecimentoId, produtoIds)
+
+    return this.categoriaRepository.removeProdutos(id, [...new Set(produtoIds)])
   }
 
   /** RF10.4 + RN02/RN08: exclusão desimpedida, nunca apaga o produto. */
