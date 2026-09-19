@@ -1,6 +1,6 @@
 # Status de Implementação vs. Issues do GitHub
 
-> Comparativo entre o que a aplicação faz hoje (branch `development`, a partir da `main`) e o backlog de issues do repositório `gustavuhh1/estoque-pay-api`. Gerado em 2026-09-12, atualizado em 2026-09-19 (módulo Equipe mesclado via PR #72; issues #41/#42 fechadas).
+> Comparativo entre o que a aplicação faz hoje (branch `feature/categorias-crud`, a partir da `development`) e o backlog de issues do repositório `gustavuhh1/estoque-pay-api`. Gerado em 2026-09-12, atualizado em 2026-09-19 (módulo Categorias implementado, aguardando merge).
 
 ## Como ler este documento
 
@@ -36,12 +36,14 @@ A base de dados (`prisma/schema.prisma`) já modela **praticamente todas** as en
 | #43 | Criar Produto e Validação Fiscal (RN09.1) | CLOSED (PR #71) | ✅ Feito | `POST /produto` cria produto na loja ativa. RN09.1 implementada: se `emite_nfce=true` e faltam NCM/CFOP, o produto nasce `ativo=false` automaticamente (nunca bloqueia o cadastro). `ean_gtin` único por loja, 409 `EAN_GTIN_ALREADY_IN_USE` em duplicidade. CASHIER bloqueado (`403 ROLE_CANNOT_MANAGE_PRODUCTS`). |
 | #44 | Listar, Editar e Exclusão Permanente de Produto | CLOSED (PR #71) | ✅ Feito | `GET /produto` lista produtos da loja (inclui inativos, exclui deletados). `PATCH /produto/:id` edita e reaplica RN09.1. `DELETE /produto/:id` sempre `204`: hard delete se o produto nunca foi vendido, soft delete (`deletado_em`, libera `ean_gtin`) se já tem venda associada — preserva histórico financeiro sem quebrar a FK `RESTRICT` de `ItemVenda`/`MovimentacaoEstoque`. Produto de outra loja → `404`. |
 | #45 | Soft Delete e Trava Fiscal de Reativação (RN09.2) | CLOSED (PR #71) | ✅ Feito | `PATCH /produto/:id/inativar` sempre permitido. `PATCH /produto/:id/reativar` aplica RN09.2: bloqueia com `403 PRODUTO_SEM_CONFORMIDADE_FISCAL` se a loja emite NFC-e e faltam NCM/CFOP. Soft delete descrito acima cobre a parte de preservação de histórico da issue. |
-| #46 | CRUD de Categorias e Vínculos N:N | OPEN | ❌ Não iniciado | Schema `Categoria` com N:N implícito para `Produto` já existe. Falta módulo inteiro — próximo candidato natural, reaproveita bastante estrutura do módulo Produto. |
+| #46 | CRUD de Categorias e Vínculos N:N | OPEN | ✅ **Feito nesta branch (aguardando merge)** | `POST /categoria` cria categoria na loja ativa, com `produto_ids` opcional pra já vincular produtos existentes (RF11.5). `GET /categoria` lista categorias com os produtos vinculados (id+nome). `PATCH /categoria/:id` edita nome e/ou substitui (via `set`, não incremento) o conjunto de produtos vinculados. `DELETE /categoria/:id` sempre `204`: RN02/RN08 — exclusão desimpedida mesmo com produtos vinculados, o cascade da FK do join table `_CategoriaToProduto` remove só o vínculo, nunca o `Produto`. Nome único por loja (409 `CATEGORIA_NOME_ALREADY_IN_USE`); `produto_id` de outra loja ou inexistente (404 `PRODUTO_NAO_ENCONTRADO`); CASHIER bloqueado (403 `ROLE_CANNOT_MANAGE_CATEGORIAS`). |
 | #47 | Ajuste Manual, Frações e Obrigatoriedade de Motivo | OPEN | ❌ Não iniciado | Schema `MovimentacaoEstoque` pronto (`TipoMovimentacao`, `MotivoMovimentacao`). Falta service transacional de entrada/saída manual. |
 | #48 | Relatório de Auditoria e Rastreabilidade | OPEN | ❌ Não iniciado | Depende de #47 gerar os registros primeiro. |
 | #49 | Identificação e Listagem de Alertas de Estoque Mínimo | OPEN | ❌ Não iniciado | Query simples (`quantidade_atual <= quantidade_minima`), mas ainda não implementada. |
 
 **Nota #43/#44/#45**: exigiu campo novo `Produto.deletado_em` (migração `20260913061503_add_produto_soft_delete`). Mesclado na `main` via PR #71 (`feature/produtos-crud-fiscal`), issues fechadas automaticamente pelo merge.
+
+**Nota #46**: não exigiu migração nova — a tabela `categorias` e o join table implícito `_CategoriaToProduto` (com `ON DELETE CASCADE` nas duas FKs) já existiam desde `20260814180326_multi_roles`. Corrigido também um bug de limpeza entre testes (`vitest.setup.ts` não apagava `categorias` antes de `estabelecimentos`, quebrando a suíte inteira por violação de FK). 162/162 testes passando, `tsc --noEmit` limpo, coleção Postman validada via Newman (pasta `Categoria`, 18 requests / 31 assertions, e coleção inteira sem regressão). Falta: abrir/mesclar o PR (`feature/categorias-crud` → `development`).
 
 ---
 
@@ -88,6 +90,7 @@ A base de dados (`prisma/schema.prisma`) já modela **praticamente todas** as en
 ## Resumo executivo
 
 - **Concluído**: 11/29 issues fechadas — #35–#38 (módulo `auth`), #39 e #40 (onboarding e listagem/edição de estabelecimento, PRs #69 e #70), #43/#44/#45 (módulo Produtos completo, PR #71), #41/#42 (módulo Equipe/Funcionários completo, PR #72). Todas já mescladas e fechadas.
-- **Maior lacuna imediata**: com equipe e o middleware multi-tenant + RBAC (`requireTenant`, `MembroEstabelecimento.role`) resolvidos, o próximo bloqueio natural é o **módulo de Categorias (#46)** — reaproveita bastante estrutura do módulo Produto (N:N já existe no schema) — seguido de auditoria de estoque (#47–#49).
-- **Módulos com schema pronto mas zero código de aplicação**: categorias, auditoria de estoque, PDV, pagamentos, CRM, NFC-e, assinatura/billing.
+- **Pronto, pendente de merge**: #46 (CRUD de Categorias + vínculo N:N com Produto) — implementado em `feature/categorias-crud`, com 162/162 testes passando e `tsc --noEmit` limpo.
+- **Maior lacuna imediata**: com Produtos, Equipe e Categorias resolvidos, o próximo bloqueio natural é a **auditoria de estoque (#47–#49)** — ajuste manual de quantidade, relatório de movimentação e alertas de estoque mínimo, todos sobre o schema `MovimentacaoEstoque` já pronto.
+- **Módulos com schema pronto mas zero código de aplicação**: auditoria de estoque, PDV, pagamentos, CRM, NFC-e, assinatura/billing.
 - **Integrações externas ainda não iniciadas**: AbacatePay para Pix/split no PDV (#52) e para billing de assinatura (#65–#67), e o emissor de NFC-e (Focus NFe/eNotas, #59–#61). A emissão de NFC-e (Fase 04) também passa a depender da Fase 05: o switch fiscal só pode ligar com plano Premium ativo (`Assinatura.status`), então #59 bloqueia em #64/#65 até existir uma assinatura real para testar contra.
