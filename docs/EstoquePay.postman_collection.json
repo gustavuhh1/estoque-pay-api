@@ -2728,6 +2728,1041 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Categoria",
+      "description": "CRUD de categorias da loja ativa e vínculo N:N com produtos (RF07.1-RF11.5, issue #46), com asserções `pm.test` espelhando `src/modules/categoria/tests/categoria.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono, uma loja e um produto próprios desta pasta (não depende das pastas Produto/Equipe terem rodado antes).\n\n**Limite desta coleção**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_CATEGORIAS`) já é reproduzível via `POST /equipe` (ver pasta Equipe), mas esta pasta não está encadeada com ela — o cenário está coberto nos testes automatizados (`categoria.e2e.spec.ts`).",
+      "item": [
+        {
+          "name": "401 - Criar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior (ex: de outra pasta) contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Categoria Anonima\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            },
+            "description": "Body válido de propósito: o preHandler `requireAuth` roda antes do `requireTenant`, então um body inválido devolveria 400 e mascararia o 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('categoriaOwnerEmail', 'dono-categoria-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('categoriaOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('categoriaCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'categoriaCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{categoriaOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Categorias\",\n  \"password\": \"{{categoriaOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup da pasta Produto."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{categoriaOwnerEmail}}\",\n  \"password\": \"{{categoriaOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('categoriaEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Categorias\",\n  \"cnpj\": \"{{categoriaCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('categoriaProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Refrigerante Lata\",\n  \"tipo_medida\": \"UNIDADE\",\n  \"preco_custo\": 3,\n  \"preco_venda\": 6,\n  \"quantidade_atual\": 50,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Produto usado mais abaixo para provar o vínculo N:N (RF11.5)."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar categoria (RF07.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Categoria criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Nasce sem produtos vinculados', function () {",
+                  "  pm.expect(pm.response.json().produtos).to.eql([]);",
+                  "});",
+                  "",
+                  "pm.test('Pertence a loja correta', function () {",
+                  "  pm.expect(pm.response.json().estabelecimento_id)",
+                  "    .to.eql(pm.collectionVariables.get('categoriaEstabelecimentoId'));",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('categoriaId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Bebidas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            },
+            "description": "Caminho feliz do cadastro, sem vínculo com produto ainda."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Criar categoria vinculando produto (RF11.5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Categoria criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Vinculo N:N salvo no banco: produto aparece na resposta', function () {",
+                  "  var produtos = pm.response.json().produtos;",
+                  "  pm.expect(produtos).to.have.lengthOf(1);",
+                  "  pm.expect(produtos[0].id).to.eql(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('categoriaComProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Frios\",\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            },
+            "description": "RF11.5: já cria a categoria vinculando um produto existente da loja."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Criar categoria com nome vazio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para nome vazio', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Criar categoria com nome duplicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 em nome duplicado', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e CATEGORIA_NOME_ALREADY_IN_USE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('CATEGORIA_NOME_ALREADY_IN_USE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Bebidas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            },
+            "description": "Reusa o nome 'Bebidas' já criado acima, na mesma loja."
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Criar categoria com produto_id inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para produto_id invalido', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e PRODUTO_NAO_ENCONTRADO', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('PRODUTO_NAO_ENCONTRADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Categoria Invalida\",\n  \"produto_ids\": [\"00000000-0000-0000-0000-000000000000\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Listar categorias (RF08.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lista as categorias da loja (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Ja tem as duas categorias criadas acima', function () {",
+                  "  pm.expect(pm.response.json().length).to.be.at.least(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categoria",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Editar categoria (RF09.3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Categoria editada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Nome foi atualizado', function () {",
+                  "  pm.expect(pm.response.json().nome).to.eql('Bebidas Geladas');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Bebidas Geladas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Editar categoria com body vazio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para body vazio', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Editar categoria inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para categoria inexistente', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Nao Importa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Adicionar produto a categoria (RF11.5, connect)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto adicionado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Vinculo incremental: produto aparece na resposta', function () {",
+                  "  var ids = pm.response.json().produtos.map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            },
+            "description": "Vincula o produto do setup a categoria 'Bebidas Frias' — só adiciona (connect), não mexe em nenhum outro vínculo dela."
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Adicionar produto inexistente a categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para produto inexistente', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e PRODUTO_NAO_ENCONTRADO', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('PRODUTO_NAO_ENCONTRADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"00000000-0000-0000-0000-000000000000\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Adicionar produtos com lista vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para lista vazia', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Remover produto da categoria (RF11.5 / RN08, disconnect)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto removido (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Vinculo incremental: produto nao aparece mais na resposta', function () {",
+                  "  var ids = pm.response.json().produtos.map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.not.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            },
+            "description": "So remove o vinculo (disconnect) - RN08 diz que o Produto em si nunca e afetado, conferido no proximo request."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN08: produto continua intacto após remover da categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto ainda existe (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('O produto desvinculado continua na lista de produtos da loja', function () {",
+                  "  var ids = pm.response.json().map(function (produto) { return produto.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "204 - Excluir categoria (RF10.4 / RN08)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Categoria excluida (204)', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaComProdutoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaComProdutoId}}"]
+            },
+            "description": "Exclui a categoria 'Frios', que está vinculada ao produto — RN08 diz que isso não pode apagar o produto."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN08: produto continua intacto após excluir a categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto ainda existe (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('O produto vinculado a categoria excluida continua na lista', function () {",
+                  "  var ids = pm.response.json().map(function (produto) { return produto.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Excluir categoria já excluída",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para categoria ja excluida', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e NOT_FOUND', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaComProdutoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaComProdutoId}}"]
+            },
+            "description": "Reusa o mesmo `categoriaComProdutoId` do request anterior — prova que a exclusão foi mesmo permanente."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -2839,6 +3874,38 @@
     },
     {
       "key": "equipeConviteEmail",
+      "value": ""
+    },
+    {
+      "key": "categoriaOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "categoriaOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "categoriaCnpj",
+      "value": ""
+    },
+    {
+      "key": "categoriaCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "categoriaEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "categoriaProdutoId",
+      "value": ""
+    },
+    {
+      "key": "categoriaId",
+      "value": ""
+    },
+    {
+      "key": "categoriaComProdutoId",
       "value": ""
     }
   ]
