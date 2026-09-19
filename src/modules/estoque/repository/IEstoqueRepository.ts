@@ -1,5 +1,6 @@
 import type {
   MotivoMovimentacao,
+  Prisma,
   Produto,
   TipoMovimentacao,
 } from "../../../../generated/prisma/client.js"
@@ -32,9 +33,15 @@ export interface IEstoqueRepository {
    * RF12.1/RF13.2 + RN05: aplica o delta no saldo do produto e grava a linha de
    * auditoria na MESMA transação — nunca uma sem a outra. Lança
    * EstoqueInsuficienteError (revertendo tudo) se a saída zerar abaixo de 0.
+   *
+   * `tx` permite participar de uma transação que o chamador já abriu, em vez de
+   * abrir a própria. O PDV depende disso: a baixa de estoque da venda precisa
+   * commitar (ou voltar atrás) junto com a Venda e os ItemVenda, e o Prisma não
+   * aninha transações interativas. Omitir `tx` mantém o comportamento de sempre.
    */
   registrarMovimentacao(
-    params: RegistrarMovimentacaoParams
+    params: RegistrarMovimentacaoParams,
+    tx?: Prisma.TransactionClient
   ): Promise<MovimentacaoComRelacoes>
   /** RF15.4: histórico paginado da loja, opcionalmente filtrado por produto. */
   findManyByEstabelecimento(
