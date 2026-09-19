@@ -2728,6 +2728,846 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Estoque",
+      "description": "Movimentação manual de estoque, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test` espelhando `src/modules/estoque/tests/estoque.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono, uma loja e os produtos próprios desta pasta.\n\n**Limite desta coleção**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com `POST /equipe` (ver pasta Equipe) e não é reproduzido aqui — o cenário está coberto nos testes automatizados.",
+      "item": [
+        {
+          "name": "401 - Movimentar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior (de outra pasta) contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"tipo\": \"ENTRADA\",\n  \"quantidade\": 1,\n  \"motivo\": \"REABASTECIMENTO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "Body válido de propósito: o `requireAuth` roda antes do `requireTenant`, então um body inválido devolveria 400 e mascararia o 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('estoqueOwnerEmail', 'dono-estoque-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('estoqueOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('estoqueCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'estoqueCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{estoqueOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Estoque\",\n  \"password\": \"{{estoqueOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup das outras pastas."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{estoqueOwnerEmail}}\",\n  \"password\": \"{{estoqueOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Estoque\",\n  \"cnpj\": \"{{estoqueCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": ["{{baseUrl}}"],
+              "path": ["estabelecimento"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto (saldo 10, mínimo 5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Queijo Minas\",\n  \"tipo_medida\": \"FRACIONADO_KG\",\n  \"preco_custo\": 20,\n  \"preco_venda\": 40,\n  \"quantidade_atual\": 10,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Nasce com saldo 10 e mínimo 5 — acima do alerta, para os testes de movimentação abaixo mexerem nesse saldo."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Lançar entrada manual (RF12.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Entrada registrada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Grava tipo, motivo e o usuario responsavel (RN05)', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.tipo).to.eql('ENTRADA');",
+                  "  pm.expect(body.motivo).to.eql('REABASTECIMENTO');",
+                  "  pm.expect(body.usuario_nome).to.eql('Dono da Loja de Estoque');",
+                  "  pm.expect(body.produto_nome).to.eql('Queijo Minas');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"ENTRADA\",\n  \"quantidade\": 5,\n  \"motivo\": \"REABASTECIMENTO\",\n  \"observacao\": \"Compra do fornecedor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "Saldo vai de 10 para 15."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Lançar saída fracionada (RF13.2 + RN04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Saida registrada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('RN04: fracao de 0.300 preservada', function () {",
+                  "  pm.expect(pm.response.json().quantidade).to.eql(0.3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 0.3,\n  \"motivo\": \"DESCARTE\",\n  \"observacao\": \"Caiu no chao\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "Saldo vai de 15 para 14.7 — prova o suporte a decimais da RN04."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Saldo do produto reflete as movimentações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo acumulado e 14.7 (10 + 5 - 0.3)', function () {",
+                  "  var produtoId = pm.collectionVariables.get('estoqueProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === produtoId; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(14.7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Motivo VENDA é reservado ao PDV (RF14.3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para motivo reservado', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 1,\n  \"motivo\": \"VENDA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "VENDA e ESTORNO_VENDA existem no enum do schema mas são escritos só pelo PDV (Fase 3) — a rota manual não aceita."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Motivo incoerente com o tipo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para motivo incoerente', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 1,\n  \"motivo\": \"REABASTECIMENTO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "REABASTECIMENTO só faz sentido em ENTRADA."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Saída maior que o saldo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 para estoque insuficiente', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e ESTOQUE_INSUFICIENTE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('ESTOQUE_INSUFICIENTE');",
+                  "});",
+                  "",
+                  "pm.test('Erro informa o saldo disponivel', function () {",
+                  "  pm.expect(pm.response.json().details.saldo_atual).to.eql(14.7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 999,\n  \"motivo\": \"PERDA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacao"]
+            },
+            "description": "A transação inteira volta atrás (RN05): nem o saldo muda, nem sobra linha de auditoria."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Relatório de auditoria (RF15.4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Envelope paginado com as 2 movimentacoes bem-sucedidas', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(2);",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "});",
+                  "",
+                  "pm.test('RF15.4: traz data, quantidade, motivo e usuario responsavel', function () {",
+                  "  var primeira = pm.response.json().data[0];",
+                  "  pm.expect(primeira).to.have.property('criado_em');",
+                  "  pm.expect(primeira).to.have.property('quantidade');",
+                  "  pm.expect(primeira).to.have.property('motivo');",
+                  "  pm.expect(primeira.usuario_nome).to.eql('Dono da Loja de Estoque');",
+                  "});",
+                  "",
+                  "pm.test('Ordem cronologica decrescente: a saida fracionada vem primeiro', function () {",
+                  "  pm.expect(pm.response.json().data[0].tipo).to.eql('SAIDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacoes"]
+            },
+            "description": "A tentativa que falhou com 409 não aparece aqui — prova de que o rollback da transação não deixou rastro (RN05)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Auditoria paginada (page e limit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria paginada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Devolve 1 item na pagina 2, mas o total continua 2', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.data).to.have.lengthOf(1);",
+                  "  pm.expect(body.total).to.eql(2);",
+                  "  pm.expect(body.page).to.eql(2);",
+                  "  pm.expect(body.limit).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?page=2&limit=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacoes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Auditoria filtrada por produto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria filtrada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('So traz movimentacoes do produto informado', function () {",
+                  "  var produtoId = pm.collectionVariables.get('estoqueProdutoId');",
+                  "  pm.response.json().data.forEach(function (mov) {",
+                  "    pm.expect(mov.produto_id).to.eql(produtoId);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?produto_id={{estoqueProdutoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacoes"],
+              "query": [
+                {
+                  "key": "produto_id",
+                  "value": "{{estoqueProdutoId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Auditoria com limit acima de 100",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para limit fora do teto', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?limit=101",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "movimentacoes"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            },
+            "description": "O teto de 100 protege a API. Atenção: parâmetro vazio (`?limit=`) também é 400 — o cliente deve OMITIR o que não usa."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto em nível de alerta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueProdutoAlertaId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Leite Integral\",\n  \"tipo_medida\": \"UNIDADE\",\n  \"preco_custo\": 4,\n  \"preco_venda\": 7,\n  \"quantidade_atual\": 1,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
+            },
+            "description": "Saldo 1 contra mínimo 5 — entra no alerta da RF16.1."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Alertas de estoque mínimo (RF16.1 / RF17.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Alertas retornados (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Inclui o produto abaixo do minimo', function () {",
+                  "  var ids = pm.response.json().map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('estoqueProdutoAlertaId'));",
+                  "});",
+                  "",
+                  "pm.test('Nao inclui o produto com saldo acima do minimo (14.7 > 5)', function () {",
+                  "  var ids = pm.response.json().map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.not.include(pm.collectionVariables.get('estoqueProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/alertas",
+              "host": ["{{baseUrl}}"],
+              "path": ["estoque", "alertas"]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -2839,6 +3679,34 @@
     },
     {
       "key": "equipeConviteEmail",
+      "value": ""
+    },
+    {
+      "key": "estoqueOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "estoqueOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "estoqueCnpj",
+      "value": ""
+    },
+    {
+      "key": "estoqueCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "estoqueEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "estoqueProdutoId",
+      "value": ""
+    },
+    {
+      "key": "estoqueProdutoAlertaId",
       "value": ""
     }
   ]
