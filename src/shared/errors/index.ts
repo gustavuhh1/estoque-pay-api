@@ -98,6 +98,16 @@ export class EanGtinAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Conflito de cadastro de categoria: o nome é único por loja (não na
+ * plataforma inteira), mesmo padrão do ean_gtin em Produto.
+ */
+export class CategoriaNomeAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe uma categoria com este nome nesta loja.") {
+    super(message, "CATEGORIA_NOME_ALREADY_IN_USE", { field: "nome" })
+  }
+}
+
+/**
  * Saída manual maior que o saldo em estoque. É 409 (e não 400) porque o corpo
  * da requisição está bem formado — o conflito é com o estado atual do produto,
  * que pode mudar a qualquer momento. `details` leva o saldo para o cliente
