@@ -106,3 +106,19 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
     super(message, "CATEGORIA_NOME_ALREADY_IN_USE", { field: "nome" })
   }
 }
+
+/**
+ * Saída manual maior que o saldo em estoque. É 409 (e não 400) porque o corpo
+ * da requisição está bem formado — o conflito é com o estado atual do produto,
+ * que pode mudar a qualquer momento. `details` leva o saldo para o cliente
+ * conseguir dizer "você só tem 2.5 kg" sem uma segunda chamada.
+ */
+export class EstoqueInsuficienteError extends ConflictError {
+  constructor(saldoAtual: number, solicitado: number) {
+    super(
+      `Estoque insuficiente: saldo atual de ${saldoAtual}, solicitado ${solicitado}.`,
+      "ESTOQUE_INSUFICIENTE",
+      { field: "quantidade", saldo_atual: saldoAtual, solicitado }
+    )
+  }
+}

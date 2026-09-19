@@ -31,8 +31,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             }
           },
           "response": []
@@ -58,8 +63,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -85,8 +95,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/forgot-password",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "forgot-password"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
             },
             "description": "Dispara o e-mail de redefinição via Brevo. O token NÃO volta na resposta (chega apenas por e-mail, no corpo da mensagem como \"Seu token é: ...\" e dentro do link). Copie-o e salve na variável de coleção `resetToken` para usar no request seguinte.\n\nRequer que o e-mail exista: o service lança erro para usuário não cadastrado."
           },
@@ -113,8 +128,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/reset-password",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "reset-password"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
             },
             "description": "Consome o token recebido por e-mail e grava a nova senha. Preencha a variável `resetToken` com o valor vindo do e-mail antes de enviar.\n\nA senha precisa ter no mínimo 8 caracteres (`minPasswordLength` do better-auth e validação no DTO). O token expira em 1 hora e só pode ser usado uma vez.\n\nPara confirmar que funcionou, rode o **Sign In** com a nova senha."
           },
@@ -183,8 +203,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Primeiro request da pasta **de propósito**: roda antes do login, quando ainda não há sessão.\n\nProva que o `requireAuth` protege a rota. O body é válido de propósito — no ciclo do Fastify o `preHandler` roda **depois** da validação do body, então um body inválido devolveria 400 e mascararia o 401.\n\nSe este teste falhar com 201, provavelmente sobrou um cookie de sessão de uma execução anterior. O pre-request tenta limpar o cookie jar automaticamente; se o Postman bloquear, limpe os cookies de `localhost` na aba **Cookies**."
           },
@@ -258,8 +282,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Cria o usuário que vai virar `OWNER` da loja.\n\nO pre-request gera, por execução:\n- **`ownerEmail`** único — o banco de dev não é limpo entre execuções, então um e-mail fixo daria `409 EMAIL_ALREADY_IN_USE` na segunda rodada.\n- **`cnpj`** válido e aleatório (com dígitos verificadores calculados) e sua versão mascarada em **`cnpjMascarado`** — o CNPJ é único na plataforma inteira, então um valor fixo só funcionaria uma vez."
           },
@@ -305,8 +334,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Autentica o dono e recebe o cookie de sessão (`better-auth.session_token`), que o cookie jar do Postman reenvia sozinho nos requests seguintes.\n\nO teste do `Set-Cookie` não é decoração: até a issue #39 o login respondia 200 **sem** cookie nenhum, e o cliente autenticava mas tomava 401 em qualquer rota protegida."
           },
@@ -365,8 +399,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "O caminho feliz do onboarding: cria a loja e vincula o usuário autenticado como `OWNER`, tudo na mesma `$transaction`.\n\nEnvia o CNPJ **com máscara** de propósito, para provar a normalização: o que volta (e o que fica no banco) são só os 14 dígitos. Sem isso, `11.222.333/0001-81` e `11222333000181` virariam duas lojas e o `@unique` do CNPJ não protegeria nada.\n\n`ie` é opcional. `emite_nfce` **não é aceito nesta rota** — nasce sempre `false`: ligar o switch fiscal depende de um pre-check de conformidade (Certificado A1, CNPJ/IE, produtos com NCM/CFOP e plano Premium ativo) que ainda não existe no onboarding."
           },
@@ -414,8 +452,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Repete o CNPJ criado no request anterior, agora **sem máscara** — a normalização precisa reconhecer que é o mesmo CNPJ e barrar.\n\nO CNPJ é único na plataforma inteira, não por usuário: ninguém pode recadastrar uma loja que já existe. O caminho certo para entrar numa loja alheia é ser convidado pelo dono."
           },
@@ -464,8 +506,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Dados incompletos: o schema Zod da rota rejeita antes de chegar no handler, e o error-handler traduz para o envelope padrão da API.\n\n`details.issues` traz um item por campo inválido, no formato `{ field, message }` — é o que o formulário usa para marcar o campo errado sem parsear texto."
           },
@@ -514,8 +560,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "`11.111.111/1111-11` passa na conta do módulo 11, mas não existe na Receita — é o placeholder clássico digitado em formulário. A validação rejeita sequências de dígitos repetidos como caso especial.\n\nTrocando por um CNPJ com dígito verificador errado (ex: mudar o último dígito de um CNPJ válido) o resultado é o mesmo 400."
           },
@@ -550,8 +600,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "RF03.1: lista as lojas onde o usuário autenticado (dono da sessão atual) tem vínculo, cada uma com o cargo dele nela. Não depende de header de tenant — é a rota que alimenta a tela de \"escolher loja\"."
           },
@@ -590,8 +644,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "RF03.2 (entrar no contexto de uma loja) + RF04.1 (visualizar dados). O header `x-estabelecimento-id` É a troca de contexto — não existe endpoint de \"selecionar loja\" com estado no servidor (a API é stateless: quem decide qual loja está ativa é o cliente, a cada request)."
           },
@@ -621,8 +680,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "Sem `x-estabelecimento-id` o requireTenant nem chega a consultar o vínculo — rejeita direto com 400, antes do 403."
           },
@@ -657,8 +721,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "UUID nulo de propósito: não existe (nem precisa existir) MembroEstabelecimento nenhum apontando pra ele, então o requireTenant barra igual barraria pra uma loja de outro dono.\n\n**Limite desta coleção**: a rota HTTP para vincular alguém como MANAGER/CASHIER já existe (`POST /equipe`, issue #41 — ver pasta Equipe), mas esta pasta não está encadeada com ela (cada uma cria sua própria loja isolada), então os cenários \"Gestor bloqueado em campo crítico\" e \"Caixa bloqueado de editar\" (Falha 2 da #40) continuam não reproduzidos aqui. Eles já estão cobertos nos testes automatizados (`estabelecimento.spec.ts` / `estabelecimento.e2e.spec.ts`), que inserem o vínculo direto no banco via Prisma."
           },
@@ -706,8 +775,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "O `.refine()` do schema de update exige ao menos um campo — evita um PATCH que não faz nada e ainda assim responde 200."
           },
@@ -755,8 +829,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "Mesma validação de dígito verificador do create, reaplicada no update."
           },
@@ -810,8 +889,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "Requester é o OWNER (dono da sessão ativa), então tem acesso total. O `emite_nfce: true` no payload é de propósito — prova que o Zod descarta o campo (não está no schema de update) em vez de travar com 400 ou aceitar silenciosamente."
           },
@@ -875,8 +959,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Precisa de um segundo dono + uma segunda loja de verdade (com CNPJ distinto) só para o próximo request provar o 409 — CNPJ duplicado é uma checagem de banco (`@unique`), não dá pra simular sem uma segunda linha real na tabela."
           },
@@ -916,8 +1005,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Troca o cookie de sessão do jar para o segundo dono — só pelo tempo deste request e do próximo (criação da segunda loja). Depois disso os requests desta pasta voltam a assumir o cookie do primeiro dono, então esta é a ÚLTIMA vez que o segundo dono é usado."
           },
@@ -982,8 +1076,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Loja separada, com CNPJ próprio (`cnpj2`), pertencente ao segundo dono. O script de teste já devolve a sessão do jar para o primeiro dono ao final, para não quebrar o resto da pasta."
           },
@@ -1031,8 +1129,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento/ativo",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento", "ativo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento",
+                "ativo"
+              ]
             },
             "description": "A sessão volta a ser a do primeiro dono (o request anterior já cuidou disso). Tenta colocar na loja 1 (`estabelecimentoId`) o CNPJ que já pertence à loja 2 (`cnpj2`) — o `@unique` do banco é quem decide, igual no create."
           },
@@ -1096,8 +1199,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "Body válido de propósito (mesmo motivo do 401 da pasta Estabelecimento): o preHandler `requireAuth` roda depois da validação do body, então um body inválido devolveria 400 e mascararia o 401.\n\nNem chega a precisar do header `x-estabelecimento-id` — sem sessão, o `requireAuth` barra antes do `requireTenant`."
           },
@@ -1168,8 +1275,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup da pasta Estabelecimento."
           },
@@ -1213,8 +1325,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -1257,8 +1374,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Nasce sem NFC-e (`emite_nfce: false`), como toda loja recém-criada — por isso os produtos desta pasta nascem sempre `ativo: true` (RN09.1 só força inativo quando a loja emite NFC-e)."
           },
@@ -1326,8 +1447,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "Caminho feliz do cadastro. `ncm`/`cfop` ficam de fora de propósito — não fazem diferença aqui porque a loja não emite NFC-e (RN09.1 não entra em ação)."
           },
@@ -1375,8 +1500,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "`preco_venda` precisa ser maior que zero — o schema Zod rejeita antes de chegar no service."
           },
@@ -1420,8 +1549,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "Sem `x-estabelecimento-id` o `requireTenant` rejeita direto com 400, antes de checar vínculo."
           },
@@ -1473,8 +1606,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "Reusa o `ean_gtin` do produto criado no request \"201 - Criar produto\". O código de barras é único por loja (não na plataforma inteira, ao contrário do CNPJ)."
           },
@@ -1513,8 +1650,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "RF02.2: lista todos os produtos da loja ativa, incluindo inativos (mas nunca os excluídos). Caixa não tem acesso a esta rota de gestão."
           },
@@ -1563,8 +1704,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}"
+              ]
             },
             "description": "Não aceita `ativo` neste endpoint (ver rotas `/inativar` e `/reativar` mais abaixo)."
           },
@@ -1612,8 +1758,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}"
+              ]
             },
             "description": "O `.refine()` do schema de update exige ao menos um campo — mesmo padrão do PATCH de estabelecimento."
           },
@@ -1661,8 +1812,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             },
             "description": "UUID nulo de propósito — mesmo raciocínio do 403 de vínculo na pasta Estabelecimento, mas aqui o vínculo com a loja existe (403 não se aplica) e quem falha é a busca do produto (404)."
           },
@@ -1697,8 +1853,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}/inativar",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}", "inativar"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}",
+                "inativar"
+              ]
             },
             "description": "RF05.5: sempre permitido, sem trava fiscal — a trava (RN09.2) só existe na reativação."
           },
@@ -1733,8 +1895,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}/reativar",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}", "reativar"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}",
+                "reativar"
+              ]
             },
             "description": "RN09.2 não entra em ação aqui porque esta loja não emite NFC-e — a trava de reativação (403 `PRODUTO_SEM_CONFORMIDADE_FISCAL`) já está coberta nos testes automatizados, que criam a loja com `emite_nfce: true` direto no banco (não há rota HTTP para isso ainda)."
           },
@@ -1765,8 +1933,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}"
+              ]
             },
             "description": "Este produto nunca teve item de venda, então a exclusão é permanente (hard delete). O cenário de soft delete (produto já vendido) depende de criar uma Venda, o que ainda não tem rota HTTP — coberto em `produto.e2e.spec.ts`."
           },
@@ -1801,8 +1974,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto/{{produtoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto", "{{produtoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto",
+                "{{produtoId}}"
+              ]
             },
             "description": "Reusa o mesmo `produtoId` do request anterior — prova que o hard delete foi mesmo permanente."
           },
@@ -1866,8 +2044,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             },
             "description": "Nem chega a precisar do header `x-estabelecimento-id` — sem sessão, o `requireAuth` barra antes do `requireTenant`."
           },
@@ -1937,8 +2119,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução."
           },
@@ -1982,8 +2169,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -2027,8 +2219,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             },
             "description": "Guarda também o `membro.id` do próprio dono (vínculo OWNER criado no onboarding) — usado mais abaixo no teste da trava do último Owner."
           },
@@ -2078,8 +2274,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Regra de login continua a mesma: registrar aqui NÃO faz login (o cookie jar continua com a sessão do dono) — isso é o que permite o próximo request (cadastro na equipe) rodar como o Owner."
           },
@@ -2131,8 +2332,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             },
             "description": "O e-mail já tem conta (request anterior), então o vínculo é criado na hora — RN01, sem nenhum e-mail disparado."
           },
@@ -2180,8 +2385,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             }
           },
           "response": []
@@ -2238,8 +2447,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             },
             "description": "E-mail nunca visto pela plataforma: fica um `ConviteFuncionario` pendente e um e-mail é disparado (via Brevo) pedindo pra pessoa se cadastrar. O vínculo em si só acontece quando ela completar o cadastro (hook em `src/lib/auth.ts`) — fora do escopo reproduzir isso aqui."
           },
@@ -2278,8 +2491,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             }
           },
           "response": []
@@ -2318,8 +2535,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Troca a sessão do cookie jar para o funcionário Caixa (o cookie de sessão é o mesmo do dono, sobrescrito pelo login) — os próximos dois requests provam o RBAC do cargo Caixa."
           },
@@ -2367,8 +2589,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             }
           },
           "response": []
@@ -2398,8 +2624,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             }
           },
           "response": []
@@ -2438,8 +2668,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Restaura a sessão do Owner no cookie jar para os requests seguintes."
           },
@@ -2487,8 +2722,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe/{{equipeMembroId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe", "{{equipeMembroId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe",
+                "{{equipeMembroId}}"
+              ]
             },
             "description": "Promove o funcionário de Caixa a Gestor, como o Owner — usado no próximo request para provar a trava de cargo do Gestor."
           },
@@ -2528,8 +2768,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -2576,8 +2821,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/equipe",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe"
+              ]
             },
             "description": "O Gestor (promovido no request anterior) só pode atribuir o cargo Caixa — atribuir Owner (ou Gestor) é exclusivo do Owner."
           },
@@ -2617,8 +2866,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -2652,8 +2906,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/equipe/{{equipeOwnerMembroId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe", "{{equipeOwnerMembroId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe",
+                "{{equipeOwnerMembroId}}"
+              ]
             },
             "description": "`equipeOwnerMembroId` é o vínculo do próprio dono (capturado no setup da loja) — único Owner desta loja, então a exclusão é bloqueada (RN03)."
           },
@@ -2684,8 +2943,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/equipe/{{equipeMembroId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe", "{{equipeMembroId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe",
+                "{{equipeMembroId}}"
+              ]
             },
             "description": "Remove o Gestor promovido acima. RN06: a sessão dele é derrubada no servidor (não visível aqui via HTTP — coberto em `equipe.e2e.spec.ts`, que confere a tabela de Session direto no banco)."
           },
@@ -2720,8 +2984,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/equipe/{{equipeMembroId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["equipe", "{{equipeMembroId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipe",
+                "{{equipeMembroId}}"
+              ]
             },
             "description": "Reusa o mesmo `equipeMembroId` do request anterior — prova que a exclusão foi mesmo permanente."
           },
@@ -2785,8 +3054,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             },
             "description": "Body válido de propósito: o preHandler `requireAuth` roda antes do `requireTenant`, então um body inválido devolveria 400 e mascararia o 401."
           },
@@ -2857,8 +3130,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup da pasta Produto."
           },
@@ -2902,8 +3180,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           },
           "response": []
@@ -2946,8 +3229,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/estabelecimento",
-              "host": ["{{baseUrl}}"],
-              "path": ["estabelecimento"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
             }
           },
           "response": []
@@ -2994,8 +3281,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             },
             "description": "Produto usado mais abaixo para provar o vínculo N:N (RF11.5)."
           },
@@ -3052,8 +3343,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             },
             "description": "Caminho feliz do cadastro, sem vínculo com produto ainda."
           },
@@ -3107,8 +3402,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             },
             "description": "RF11.5: já cria a categoria vinculando um produto existente da loja."
           },
@@ -3156,8 +3455,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             }
           },
           "response": []
@@ -3204,8 +3507,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             },
             "description": "Reusa o nome 'Bebidas' já criado acima, na mesma loja."
           },
@@ -3253,8 +3560,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             }
           },
           "response": []
@@ -3288,8 +3599,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/categoria",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria"
+              ]
             }
           },
           "response": []
@@ -3336,8 +3651,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}"
+              ]
             }
           },
           "response": []
@@ -3380,8 +3700,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}"
+              ]
             }
           },
           "response": []
@@ -3424,8 +3749,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "response": []
@@ -3473,8 +3803,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}", "produtos"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}",
+                "produtos"
+              ]
             },
             "description": "Vincula o produto do setup a categoria 'Bebidas Frias' — só adiciona (connect), não mexe em nenhum outro vínculo dela."
           },
@@ -3522,8 +3858,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}", "produtos"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}",
+                "produtos"
+              ]
             }
           },
           "response": []
@@ -3566,8 +3908,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}", "produtos"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}",
+                "produtos"
+              ]
             }
           },
           "response": []
@@ -3615,8 +3963,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}", "produtos"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaId}}",
+                "produtos"
+              ]
             },
             "description": "So remove o vinculo (disconnect) - RN08 diz que o Produto em si nunca e afetado, conferido no proximo request."
           },
@@ -3652,8 +4006,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             }
           },
           "response": []
@@ -3683,8 +4041,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaComProdutoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaComProdutoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaComProdutoId}}"
+              ]
             },
             "description": "Exclui a categoria 'Frios', que está vinculada ao produto — RN08 diz que isso não pode apagar o produto."
           },
@@ -3720,8 +4083,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/produto",
-              "host": ["{{baseUrl}}"],
-              "path": ["produto"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
             }
           },
           "response": []
@@ -3755,10 +4122,936 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/categoria/{{categoriaComProdutoId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaComProdutoId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categoria",
+                "{{categoriaComProdutoId}}"
+              ]
             },
             "description": "Reusa o mesmo `categoriaComProdutoId` do request anterior — prova que a exclusão foi mesmo permanente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Estoque",
+      "description": "Movimentação manual de estoque, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test` espelhando `src/modules/estoque/tests/estoque.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono, uma loja e os produtos próprios desta pasta.\n\n**Limite desta coleção**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com `POST /equipe` (ver pasta Equipe) e não é reproduzido aqui — o cenário está coberto nos testes automatizados.",
+      "item": [
+        {
+          "name": "401 - Movimentar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Garante que nenhuma sessao anterior (de outra pasta) contamine este teste.",
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar. Se o teste falhar, limpe os cookies de localhost manualmente.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e UNAUTHORIZED', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"tipo\": \"ENTRADA\",\n  \"quantidade\": 1,\n  \"motivo\": \"REABASTECIMENTO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "Body válido de propósito: o `requireAuth` roda antes do `requireTenant`, então um body inválido devolveria 400 e mascararia o 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('estoqueOwnerEmail', 'dono-estoque-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('estoqueOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('estoqueCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'estoqueCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{estoqueOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Estoque\",\n  \"password\": \"{{estoqueOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Dono próprio desta pasta, com e-mail e CNPJ únicos por execução — mesmo raciocínio do setup das outras pastas."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login devolve o cookie de sessao', function () {",
+                  "  pm.expect(pm.response.headers.has('set-cookie')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{estoqueOwnerEmail}}\",\n  \"password\": \"{{estoqueOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Estoque\",\n  \"cnpj\": \"{{estoqueCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto (saldo 10, mínimo 5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Queijo Minas\",\n  \"tipo_medida\": \"FRACIONADO_KG\",\n  \"preco_custo\": 20,\n  \"preco_venda\": 40,\n  \"quantidade_atual\": 10,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            },
+            "description": "Nasce com saldo 10 e mínimo 5 — acima do alerta, para os testes de movimentação abaixo mexerem nesse saldo."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Lançar entrada manual (RF12.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Entrada registrada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Grava tipo, motivo e o usuario responsavel (RN05)', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.tipo).to.eql('ENTRADA');",
+                  "  pm.expect(body.motivo).to.eql('REABASTECIMENTO');",
+                  "  pm.expect(body.usuario_nome).to.eql('Dono da Loja de Estoque');",
+                  "  pm.expect(body.produto_nome).to.eql('Queijo Minas');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"ENTRADA\",\n  \"quantidade\": 5,\n  \"motivo\": \"REABASTECIMENTO\",\n  \"observacao\": \"Compra do fornecedor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "Saldo vai de 10 para 15."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Lançar saída fracionada (RF13.2 + RN04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Saida registrada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('RN04: fracao de 0.300 preservada', function () {",
+                  "  pm.expect(pm.response.json().quantidade).to.eql(0.3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 0.3,\n  \"motivo\": \"DESCARTE\",\n  \"observacao\": \"Caiu no chao\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "Saldo vai de 15 para 14.7 — prova o suporte a decimais da RN04."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Saldo do produto reflete as movimentações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo acumulado e 14.7 (10 + 5 - 0.3)', function () {",
+                  "  var produtoId = pm.collectionVariables.get('estoqueProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === produtoId; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(14.7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Motivo VENDA é reservado ao PDV (RF14.3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para motivo reservado', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 1,\n  \"motivo\": \"VENDA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "VENDA e ESTORNO_VENDA existem no enum do schema mas são escritos só pelo PDV (Fase 3) — a rota manual não aceita."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Motivo incoerente com o tipo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para motivo incoerente', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 1,\n  \"motivo\": \"REABASTECIMENTO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "REABASTECIMENTO só faz sentido em ENTRADA."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Saída maior que o saldo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 para estoque insuficiente', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e ESTOQUE_INSUFICIENTE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('ESTOQUE_INSUFICIENTE');",
+                  "});",
+                  "",
+                  "pm.test('Erro informa o saldo disponivel', function () {",
+                  "  pm.expect(pm.response.json().details.saldo_atual).to.eql(14.7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_id\": \"{{estoqueProdutoId}}\",\n  \"tipo\": \"SAIDA\",\n  \"quantidade\": 999,\n  \"motivo\": \"PERDA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacao"
+              ]
+            },
+            "description": "A transação inteira volta atrás (RN05): nem o saldo muda, nem sobra linha de auditoria."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Relatório de auditoria (RF15.4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Envelope paginado com as 2 movimentacoes bem-sucedidas', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(2);",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "});",
+                  "",
+                  "pm.test('RF15.4: traz data, quantidade, motivo e usuario responsavel', function () {",
+                  "  var primeira = pm.response.json().data[0];",
+                  "  pm.expect(primeira).to.have.property('criado_em');",
+                  "  pm.expect(primeira).to.have.property('quantidade');",
+                  "  pm.expect(primeira).to.have.property('motivo');",
+                  "  pm.expect(primeira.usuario_nome).to.eql('Dono da Loja de Estoque');",
+                  "});",
+                  "",
+                  "pm.test('Ordem cronologica decrescente: a saida fracionada vem primeiro', function () {",
+                  "  pm.expect(pm.response.json().data[0].tipo).to.eql('SAIDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ]
+            },
+            "description": "A tentativa que falhou com 409 não aparece aqui — prova de que o rollback da transação não deixou rastro (RN05)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Auditoria paginada (page e limit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria paginada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Devolve 1 item na pagina 2, mas o total continua 2', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.data).to.have.lengthOf(1);",
+                  "  pm.expect(body.total).to.eql(2);",
+                  "  pm.expect(body.page).to.eql(2);",
+                  "  pm.expect(body.limit).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?page=2&limit=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Auditoria filtrada por produto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria filtrada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('So traz movimentacoes do produto informado', function () {",
+                  "  var produtoId = pm.collectionVariables.get('estoqueProdutoId');",
+                  "  pm.response.json().data.forEach(function (mov) {",
+                  "    pm.expect(mov.produto_id).to.eql(produtoId);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?produto_id={{estoqueProdutoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ],
+              "query": [
+                {
+                  "key": "produto_id",
+                  "value": "{{estoqueProdutoId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Auditoria com limit acima de 100",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para limit fora do teto', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes?limit=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            },
+            "description": "O teto de 100 protege a API. Atenção: parâmetro vazio (`?limit=`) também é 400 — o cliente deve OMITIR o que não usa."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto em nível de alerta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('estoqueProdutoAlertaId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Leite Integral\",\n  \"tipo_medida\": \"UNIDADE\",\n  \"preco_custo\": 4,\n  \"preco_venda\": 7,\n  \"quantidade_atual\": 1,\n  \"quantidade_minima\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            },
+            "description": "Saldo 1 contra mínimo 5 — entra no alerta da RF16.1."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Alertas de estoque mínimo (RF16.1 / RF17.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Alertas retornados (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Inclui o produto abaixo do minimo', function () {",
+                  "  var ids = pm.response.json().map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('estoqueProdutoAlertaId'));",
+                  "});",
+                  "",
+                  "pm.test('Nao inclui o produto com saldo acima do minimo (14.7 > 5)', function () {",
+                  "  var ids = pm.response.json().map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.not.include(pm.collectionVariables.get('estoqueProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{estoqueEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/alertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "alertas"
+              ]
+            }
           },
           "response": []
         }
@@ -3906,6 +5199,34 @@
     },
     {
       "key": "categoriaComProdutoId",
+      "value": ""
+    },
+    {
+      "key": "estoqueOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "estoqueOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "estoqueCnpj",
+      "value": ""
+    },
+    {
+      "key": "estoqueCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "estoqueEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "estoqueProdutoId",
+      "value": ""
+    },
+    {
+      "key": "estoqueProdutoAlertaId",
       "value": ""
     }
   ]
