@@ -11,7 +11,6 @@ export default async function routes(app: FastifyInstance) {
   app.register(estabelecimentoRoutes, { prefix: "/estabelecimento" })
   app.register(produtoRoutes, { prefix: "/produto" })
   app.register(equipeRoutes, { prefix: "/equipe" })
-  app.register(estoqueRoutes, { prefix: "/estoque" })
   app.register(categoriaRoutes, { prefix: "/categoria" })
   app.register(estoqueRoutes, { prefix: "/estoque" })
   // app.register(crmRoutes, { prefix: "/crm" })
