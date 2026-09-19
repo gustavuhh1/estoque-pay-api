@@ -16,6 +16,7 @@ beforeEach(async () => {
   await prisma.turnoCaixa.deleteMany()
   await prisma.movimentacaoEstoque.deleteMany()
   await prisma.produto.deleteMany()
+  await prisma.categoria.deleteMany()
   await prisma.membroEstabelecimento.deleteMany()
   await prisma.conviteFuncionario.deleteMany()
   await prisma.estabelecimento.deleteMany()

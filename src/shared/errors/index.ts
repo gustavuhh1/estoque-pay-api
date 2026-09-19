@@ -96,3 +96,13 @@ export class EanGtinAlreadyInUseError extends ConflictError {
     super(message, "EAN_GTIN_ALREADY_IN_USE", { field: "ean_gtin" })
   }
 }
+
+/**
+ * Conflito de cadastro de categoria: o nome é único por loja (não na
+ * plataforma inteira), mesmo padrão do ean_gtin em Produto.
+ */
+export class CategoriaNomeAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe uma categoria com este nome nesta loja.") {
+    super(message, "CATEGORIA_NOME_ALREADY_IN_USE", { field: "nome" })
+  }
+}
