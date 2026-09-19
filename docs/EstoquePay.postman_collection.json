@@ -3343,57 +3343,6 @@
           "response": []
         },
         {
-          "name": "200 - Editar produtos vinculados da categoria (RF11.5)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Categoria editada (200)', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test('produto_ids substitui o conjunto vinculado', function () {",
-                  "  var produtos = pm.response.json().produtos;",
-                  "  pm.expect(produtos).to.have.lengthOf(1);",
-                  "  pm.expect(produtos[0].id).to.eql(pm.collectionVariables.get('categoriaProdutoId'));",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "x-estabelecimento-id",
-                "value": "{{categoriaEstabelecimentoId}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/categoria/{{categoriaId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["categoria", "{{categoriaId}}"]
-            },
-            "description": "Vincula 'Bebidas Geladas' ao mesmo produto criado no setup — prova o `set` do PATCH."
-          },
-          "response": []
-        },
-        {
           "name": "400 - Editar categoria com body vazio",
           "event": [
             {
@@ -3477,6 +3426,234 @@
               "raw": "{{baseUrl}}/categoria/00000000-0000-0000-0000-000000000000",
               "host": ["{{baseUrl}}"],
               "path": ["categoria", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Adicionar produto a categoria (RF11.5, connect)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto adicionado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Vinculo incremental: produto aparece na resposta', function () {",
+                  "  var ids = pm.response.json().produtos.map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            },
+            "description": "Vincula o produto do setup a categoria 'Bebidas Frias' — só adiciona (connect), não mexe em nenhum outro vínculo dela."
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Adicionar produto inexistente a categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 404 para produto inexistente', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e PRODUTO_NAO_ENCONTRADO', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('PRODUTO_NAO_ENCONTRADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"00000000-0000-0000-0000-000000000000\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Adicionar produtos com lista vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para lista vazia', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Remover produto da categoria (RF11.5 / RN08, disconnect)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto removido (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Vinculo incremental: produto nao aparece mais na resposta', function () {",
+                  "  var ids = pm.response.json().produtos.map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.not.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto_ids\": [\"{{categoriaProdutoId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categoria/{{categoriaId}}/produtos",
+              "host": ["{{baseUrl}}"],
+              "path": ["categoria", "{{categoriaId}}", "produtos"]
+            },
+            "description": "So remove o vinculo (disconnect) - RN08 diz que o Produto em si nunca e afetado, conferido no proximo request."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN08: produto continua intacto após remover da categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto ainda existe (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('O produto desvinculado continua na lista de produtos da loja', function () {",
+                  "  var ids = pm.response.json().map(function (produto) { return produto.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('categoriaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{categoriaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": ["{{baseUrl}}"],
+              "path": ["produto"]
             }
           },
           "response": []
