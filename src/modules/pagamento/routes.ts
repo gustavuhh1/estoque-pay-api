@@ -1,11 +1,15 @@
 import type { FastifyInstance } from "fastify"
 import type { ZodTypeProvider } from "@fastify/type-provider-zod"
 import { WebhookController } from "./controller/WebhookController"
+import { PixController } from "./controller/PixController"
 import { AbacatePayGateway } from "./gateway/AbacatePayGateway"
 import type { IPagamentoGateway } from "./gateway/IPagamentoGateway"
+import { requireAuth } from "@/shared/middlewares/require-auth"
+import { requireTenant } from "@/shared/middlewares/require-tenant"
 import { UnauthorizedError } from "@/shared/errors"
 import { errorResponseSchema } from "@/shared/errors/schema"
 import { webhookAbacatePaySchema, webhookResponseSchema } from "./dto/webhook.dto"
+import { paymentIdParamsSchema, statusCobrancaResponseSchema } from "./dto/pix.dto"
 
 // Mesmo padrão de augmentation inline dos middlewares (o tsconfig usa `types: []`).
 declare module "fastify" {
@@ -24,6 +28,79 @@ declare module "fastify" {
 export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGateway()) {
   return async function (app: FastifyInstance) {
     const webhookController = new WebhookController()
+    const pixController = new PixController(gateway)
+
+    const route = app.withTypeProvider<ZodTypeProvider>()
+
+    route.get(
+      "/pix/:payment_id/status",
+      {
+        preHandler: [requireAuth, requireTenant],
+        schema: {
+          tags: ["Pagamento"],
+          summary: "Consulta o status de uma cobrança Pix (polling)",
+          description:
+            "Requer o header `x-estabelecimento-id`. Enquanto o webhook não estiver configurado, é assim que o PDV descobre que o Pix caiu: o cliente está no balcão e o caixa consulta a cada poucos segundos até `pago: true`. **Limite**: se o caixa fechar a tela antes do cliente pagar, ninguém consulta mais e a venda trava em PENDENTE — cobrir esse caso é o papel do webhook (issue própria).",
+          security: [{ cookieAuth: [] }],
+          params: paymentIdParamsSchema,
+          response: {
+            200: statusCobrancaResponseSchema,
+            400: errorResponseSchema.describe(
+              "Header x-estabelecimento-id ausente (code: TENANT_HEADER_REQUIRED) ou erro do provedor (code: GATEWAY_PAGAMENTO_ERRO)"
+            ),
+            401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+            403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+          },
+        },
+      },
+      async (req, res) => pixController.consultarStatus(req, res)
+    )
+
+    /* ════════════════════════════════════════════════════════════════════════
+     * ⚠️  ROTA DE DESENVOLVIMENTO — NÃO PODE IR ATIVA PARA A `main`  ⚠️
+     * ════════════════════════════════════════════════════════════════════════
+     *
+     * Esta rota marca uma cobrança como PAGA sem que ninguém tenha pagado.
+     * Em produção ela seria um botão de "dar baixa em venda de graça".
+     *
+     * >>> AO MESCLAR PARA A `main`, COMENTE O BLOCO `route.post` ABAIXO. <<<
+     *
+     * Ela existe para testar o fluxo do Pix em desenvolvimento sem precisar
+     * escanear QR Code nem gastar dinheiro de verdade.
+     *
+     * Existem três camadas de proteção, e nenhuma delas dispensa as outras:
+     *   1. este aviso, para o humano comentar o bloco ao subir para a main;
+     *   2. a trava de `NODE_ENV` logo abaixo, que impede o registro da rota em
+     *      produção mesmo se alguém esquecer de comentar (comentário é fácil
+     *      de esquecer num merge; trava de código não);
+     *   3. a própria AbacatePay, que recusa este endpoint com chave de
+     *      produção — "only works with sandbox API keys".
+     * ════════════════════════════════════════════════════════════════════════ */
+    if (process.env.NODE_ENV !== "production") {
+      route.post(
+        "/pix/:payment_id/simular-pagamento",
+        {
+          preHandler: [requireAuth, requireTenant],
+          schema: {
+            tags: ["Pagamento"],
+            summary: "[DEV] Simula o pagamento de uma cobrança Pix",
+            description:
+              "⚠️ **Somente desenvolvimento.** Marca a cobrança como PAGA sem pagamento real, para testar o fluxo do PDV sem escanear QR Code. Não é registrada quando `NODE_ENV=production`, e a AbacatePay recusa a chamada com chave de produção.",
+            security: [{ cookieAuth: [] }],
+            params: paymentIdParamsSchema,
+            response: {
+              200: statusCobrancaResponseSchema,
+              400: errorResponseSchema.describe(
+                "Header ausente ou o provedor recusou (ex: chave de produção)"
+              ),
+              401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+              403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+            },
+          },
+        },
+        async (req, res) => pixController.simularPagamento(req, res)
+      )
+    }
 
     /**
      * Escopo ISOLADO para o webhook. Dois motivos:
