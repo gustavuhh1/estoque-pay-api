@@ -108,6 +108,35 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Tentativa de cancelar uma venda que já foi cancelada. 409 porque o corpo da
+ * requisição está correto — o conflito é com o estado atual da venda.
+ *
+ * Existe para o cancelamento ser idempotente do ponto de vista do estoque: sem
+ * esta trava, cancelar duas vezes devolveria o produto ao estoque em dobro e
+ * criaria mercadoria do nada.
+ */
+export class VendaJaCanceladaError extends ConflictError {
+  constructor(message = "Esta venda já foi cancelada.") {
+    super(message, "VENDA_JA_CANCELADA")
+  }
+}
+
+/**
+ * Tentativa de cancelar uma venda que nunca foi paga (ex: Pix PENDENTE que o
+ * cliente abandonou). Não há o que estornar, e devolver ao estoque criaria
+ * saldo do nada — a baixa nunca aconteceu.
+ */
+export class VendaNaoPagaError extends ConflictError {
+  constructor(status: string) {
+    super(
+      `Só é possível cancelar uma venda paga. Status atual: ${status}.`,
+      "VENDA_NAO_PAGA",
+      { status_atual: status }
+    )
+  }
+}
+
+/**
  * Tentativa de vender sem turno de caixa aberto na loja.
  *
  * É 409 e não 403: não é falta de permissão, é conflito com o estado atual da

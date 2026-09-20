@@ -1,6 +1,12 @@
 import z from "zod"
 import type { ItemVenda, Produto, Venda } from "../../../../generated/prisma/client.js"
 
+/** RF05.1: identifica a venda a cancelar. */
+export const vendaIdParamsSchema = z.object({
+  venda_id: z.uuid(),
+})
+export type VendaIdParams = z.infer<typeof vendaIdParamsSchema>
+
 /** RF01.1: termo de busca do PDV (código de barras ou parte do nome). */
 export const buscarProdutoQuerySchema = z.object({
   termo: z.string().trim().min(1, "Informe o código de barras ou o nome do produto."),

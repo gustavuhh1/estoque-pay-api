@@ -42,10 +42,11 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
     // Wiring do pagamento manual (#51). O VendaPrismaRepository recebe o
     // repositório de Estoque para a baixa rodar dentro da transação da venda.
     const estoqueRepository = new EstoquePrismaRepository(prisma)
+    const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
     const pagamentoController = new PagamentoController(
       new PagamentoService(
-        new VendaPrismaRepository(prisma, estoqueRepository),
-        new VendaService(new ProdutoPrismaRepository(prisma)),
+        vendaRepository,
+        new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
         new CaixaPrismaRepository(prisma)
       )
     )

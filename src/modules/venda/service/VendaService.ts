@@ -1,7 +1,13 @@
-import { Prisma, type Produto } from "../../../../generated/prisma/client.js"
-import { NotFoundError } from "@/shared/errors"
+import { Prisma, type Produto, type Role } from "../../../../generated/prisma/client.js"
+import {
+  ForbiddenError,
+  NotFoundError,
+  VendaJaCanceladaError,
+  VendaNaoPagaError,
+} from "@/shared/errors"
 import type { IProdutoRepository } from "@/modules/produto/repository/IProdutoRepository"
-import type { ItemCarrinhoDTO } from "../dto/venda.dto"
+import type { ItemCarrinhoDTO, VendaComItens } from "../dto/venda.dto"
+import type { IVendaRepository } from "../repository/IVendaRepository"
 
 export interface ItemPrecificado {
   produto_id: string
@@ -23,7 +29,24 @@ export interface CarrinhoPrecificado {
  * fase ficam no cancelamento (#53), não aqui.
  */
 export class VendaService {
-  constructor(private produtoRepository: IProdutoRepository) {}
+  constructor(
+    private produtoRepository: IProdutoRepository,
+    private vendaRepository: IVendaRepository
+  ) {}
+
+  /**
+   * RN02 — issue #53. Ao contrário da busca, do cálculo e do pagamento (que o
+   * Caixa faz o dia inteiro), CANCELAR é o único ato de venda restrito: desfaz
+   * dinheiro e mexe em estoque, então precisa de Owner ou Gestor.
+   */
+  private garantirAcessoCancelamento(role: Role) {
+    if (role === "CASHIER") {
+      throw new ForbiddenError(
+        "Usuários com o cargo Caixa não podem cancelar vendas.",
+        "ROLE_CANNOT_CANCEL_VENDA"
+      )
+    }
+  }
 
   /** RF01.1 */
   async buscarProdutos(estabelecimentoId: string, termo: string): Promise<Produto[]> {
@@ -92,5 +115,57 @@ export class VendaService {
     }
 
     return { itens: precificados, total: Number(total) }
+  }
+
+  /**
+   * RF05.1/RF05.2 + RN02/RN03 — issue #53.
+   *
+   * Cancela uma venda PAGA, devolvendo cada item ao estoque com rastro de
+   * auditoria. O cancelamento NÃO exige turno aberto: um gestor precisa poder
+   * corrigir um erro do dia anterior antes de abrir o caixa.
+   *
+   * Consequência a ter em mente: cancelar venda de um turno já fechado faz o
+   * valor declarado naquele fechamento deixar de bater com as vendas do turno.
+   * Reconciliar isso é assunto de relatório financeiro, fora do escopo aqui.
+   */
+  async cancelar(
+    estabelecimentoId: string,
+    usuarioId: string,
+    role: Role,
+    vendaId: string
+  ): Promise<VendaComItens> {
+    this.garantirAcessoCancelamento(role)
+
+    const venda = await this.vendaRepository.findByIdAndEstabelecimento(
+      vendaId,
+      estabelecimentoId
+    )
+
+    // Venda de outra loja é indistinguível de inexistente, de propósito.
+    if (!venda) {
+      throw new NotFoundError("Venda não encontrada nesta loja.", "VENDA_NAO_ENCONTRADA")
+    }
+
+    // Sem esta trava, cancelar duas vezes devolveria o produto ao estoque em
+    // dobro — mercadoria criada do nada.
+    if (venda.status_pagamento === "CANCELADO") {
+      throw new VendaJaCanceladaError()
+    }
+
+    // Pix PENDENTE que o cliente abandonou nunca baixou estoque; "devolver"
+    // criaria saldo inexistente. Abandono de cobrança é outro fluxo.
+    if (venda.status_pagamento !== "PAGO") {
+      throw new VendaNaoPagaError(venda.status_pagamento)
+    }
+
+    return this.vendaRepository.cancelar({
+      id: venda.id,
+      cancelada_por_id: usuarioId,
+      estabelecimento_id: estabelecimentoId,
+      itens: venda.itens.map((item) => ({
+        produto_id: item.produto_id,
+        quantidade: Number(item.quantidade),
+      })),
+    })
   }
 }
