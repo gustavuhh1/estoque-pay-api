@@ -108,6 +108,36 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Tentativa de vender sem turno de caixa aberto na loja.
+ *
+ * É 409 e não 403: não é falta de permissão, é conflito com o estado atual da
+ * loja — basta alguém abrir o caixa e a mesma requisição passa. O fechamento de
+ * caixa só consegue apontar furo se TODA venda estiver amarrada a um turno,
+ * então vender fora de turno é bloqueado de propósito.
+ */
+export class TurnoFechadoError extends ConflictError {
+  constructor(
+    message = "Não é possível vender com o caixa fechado. Abra o turno antes."
+  ) {
+    super(message, "TURNO_FECHADO")
+  }
+}
+
+/**
+ * Pagamento em dinheiro menor que o total da venda. 400 porque o problema está
+ * no corpo da requisição em si, não em estado do banco.
+ */
+export class ValorPagoInsuficienteError extends BadRequestError {
+  constructor(total: number, valorPago: number) {
+    super(
+      `Valor pago (${valorPago}) é menor que o total da venda (${total}).`,
+      "VALOR_PAGO_INSUFICIENTE",
+      { field: "valor_pago", total, valor_pago: valorPago }
+    )
+  }
+}
+
+/**
  * Tentativa de abrir turno numa loja que já tem um turno ABERTO. O turno é por
  * LOJA, não por pessoa — enquanto o caixa da loja estiver aberto, ninguém abre
  * outro, seja quem for.
