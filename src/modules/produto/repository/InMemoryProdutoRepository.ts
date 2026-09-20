@@ -42,6 +42,21 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
     )
   }
 
+  async buscarParaVenda(estabelecimentoId: string, termo: string): Promise<Produto[]> {
+    const alvo = termo.toLowerCase()
+
+    return this.produtos
+      .filter(
+        (produto) =>
+          produto.estabelecimento_id === estabelecimentoId &&
+          produto.deletado_em === null &&
+          // O PDV não oferece produto inativo (ver IProdutoRepository).
+          produto.ativo &&
+          (produto.ean_gtin === termo || produto.nome.toLowerCase().includes(alvo))
+      )
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  }
+
   async findByIdAndEstabelecimento(
     id: string,
     estabelecimentoId: string
