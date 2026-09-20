@@ -15,15 +15,18 @@ const RELACOES_DA_MOVIMENTACAO = {
 export class EstoquePrismaRepository implements IEstoqueRepository {
   constructor(private prisma: PrismaClient) {}
 
-  async registrarMovimentacao(params: RegistrarMovimentacaoParams) {
+  async registrarMovimentacao(
+    params: RegistrarMovimentacaoParams,
+    tx?: Prisma.TransactionClient
+  ) {
     const quantidade = new Prisma.Decimal(params.quantidade.toString())
 
-    return this.prisma.$transaction(async (tx) => {
+    const executar = async (client: Prisma.TransactionClient) => {
       // Aritmética no banco (SET quantidade_atual = quantidade_atual ± $1), não
       // em JS: o UPDATE pega row lock, então duas saídas concorrentes serializam
       // aqui e o valor retornado já é o saldo real. O caminho ingênuo
       // (ler -> calcular -> gravar) perderia uma das duas (lost update).
-      const produto = await tx.produto.update({
+      const produto = await client.produto.update({
         where: { id: params.produto_id },
         data: {
           quantidade_atual:
@@ -34,7 +37,9 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
 
       // Decimal.lessThan, nunca `<` de JS (RN04). Lançar aqui derruba a
       // transação inteira: o UPDATE acima volta atrás junto com o insert de
-      // auditoria abaixo — RN05, nunca um sem o outro.
+      // auditoria abaixo — RN05, nunca um sem o outro. Quando `client` é a
+      // transação do chamador, o throw sobe e derruba ela também — é assim que
+      // a venda inteira volta atrás se a baixa de um item falhar (RNF01).
       if (produto.quantidade_atual.lessThan(0)) {
         throw new EstoqueInsuficienteError(
           Number(produto.quantidade_atual.add(quantidade)),
@@ -42,7 +47,7 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
         )
       }
 
-      return tx.movimentacaoEstoque.create({
+      return client.movimentacaoEstoque.create({
         data: {
           estabelecimento_id: params.estabelecimento_id,
           produto_id: params.produto_id,
@@ -54,7 +59,12 @@ export class EstoquePrismaRepository implements IEstoqueRepository {
         },
         include: RELACOES_DA_MOVIMENTACAO,
       })
-    })
+    }
+
+    // Participa da transação do chamador quando existe; senão abre a própria.
+    // O Prisma não aninha transações interativas, então não dá para simplesmente
+    // chamar $transaction aqui dentro de outra já aberta.
+    return tx ? executar(tx) : this.prisma.$transaction(executar)
   }
 
   async findManyByEstabelecimento(

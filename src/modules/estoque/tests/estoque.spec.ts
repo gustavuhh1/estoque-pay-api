@@ -453,3 +453,134 @@ describe("EstoqueService", () => {
     })
   })
 })
+
+/**
+ * O PDV (Fase 03) precisa que a baixa de estoque commite junto com a Venda e os
+ * ItemVenda, e o Prisma não aninha transações interativas. Por isso o
+ * registrarMovimentacao aceita a transação do chamador. Estes testes provam que
+ * ele de fato participa dela — é a garantia em que a RNF01 da #51 se apoia.
+ */
+describe("EstoquePrismaRepository.registrarMovimentacao com transação externa", () => {
+  let repository: EstoquePrismaRepository
+
+  beforeEach(() => {
+    repository = new EstoquePrismaRepository(prisma)
+  })
+
+  it("commita junto com as outras escritas da transação do chamador", async () => {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    const produto = await criarProdutoDireto(loja.id, { quantidade_atual: 10 })
+
+    await prisma.$transaction(async (tx) => {
+      await repository.registrarMovimentacao(
+        {
+          estabelecimento_id: loja.id,
+          produto_id: produto.id,
+          usuario_id: usuario.id,
+          quantidade: 4,
+          tipo: "SAIDA",
+          motivo: "VENDA",
+        },
+        tx
+      )
+
+      // Escrita do chamador na MESMA transação, simulando o que a venda faria.
+      await tx.produto.update({
+        where: { id: produto.id },
+        data: { nome: "Renomeado pelo chamador" },
+      })
+    })
+
+    const noBanco = await prisma.produto.findUniqueOrThrow({ where: { id: produto.id } })
+    expect(Number(noBanco.quantidade_atual)).toBe(6)
+    expect(noBanco.nome).toBe("Renomeado pelo chamador")
+    expect(await prisma.movimentacaoEstoque.count()).toBe(1)
+  })
+
+  it("volta atrás quando o chamador falha DEPOIS da movimentação", async () => {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    const produto = await criarProdutoDireto(loja.id, { quantidade_atual: 10 })
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await repository.registrarMovimentacao(
+          {
+            estabelecimento_id: loja.id,
+            produto_id: produto.id,
+            usuario_id: usuario.id,
+            quantidade: 4,
+            tipo: "SAIDA",
+            motivo: "VENDA",
+          },
+          tx
+        )
+
+        throw new Error("falha simulada depois da baixa de estoque")
+      })
+    ).rejects.toThrow("falha simulada depois da baixa de estoque")
+
+    const noBanco = await prisma.produto.findUniqueOrThrow({ where: { id: produto.id } })
+    expect(Number(noBanco.quantidade_atual)).toBe(10)
+    expect(await prisma.movimentacaoEstoque.count()).toBe(0)
+  })
+
+  it("o EstoqueInsuficienteError derruba a transação do chamador inteira", async () => {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    const comSaldo = await criarProdutoDireto(loja.id, {
+      nome: "Com saldo",
+      quantidade_atual: 10,
+    })
+    const semSaldo = await criarProdutoDireto(loja.id, {
+      nome: "Sem saldo",
+      quantidade_atual: 1,
+    })
+
+    // Dois itens da mesma "venda": o primeiro passa, o segundo estoura o saldo.
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const baixar = (produtoId: string, quantidade: number) =>
+          repository.registrarMovimentacao(
+            {
+              estabelecimento_id: loja.id,
+              produto_id: produtoId,
+              usuario_id: usuario.id,
+              quantidade,
+              tipo: "SAIDA",
+              motivo: "VENDA",
+            },
+            tx
+          )
+
+        await baixar(comSaldo.id, 2)
+        await baixar(semSaldo.id, 999)
+      })
+    ).rejects.toBeInstanceOf(EstoqueInsuficienteError)
+
+    // A baixa do PRIMEIRO item também precisa ter voltado atrás.
+    const primeiro = await prisma.produto.findUniqueOrThrow({ where: { id: comSaldo.id } })
+    expect(Number(primeiro.quantidade_atual)).toBe(10)
+    expect(await prisma.movimentacaoEstoque.count()).toBe(0)
+  })
+
+  it("sem transação externa continua abrindo a própria (comportamento de sempre)", async () => {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    const produto = await criarProdutoDireto(loja.id, { quantidade_atual: 10 })
+
+    await repository.registrarMovimentacao({
+      estabelecimento_id: loja.id,
+      produto_id: produto.id,
+      usuario_id: usuario.id,
+      quantidade: 3,
+      tipo: "ENTRADA",
+      motivo: "REABASTECIMENTO",
+    })
+
+    const noBanco = await prisma.produto.findUniqueOrThrow({ where: { id: produto.id } })
+    expect(Number(noBanco.quantidade_atual)).toBe(13)
+    expect(await prisma.movimentacaoEstoque.count()).toBe(1)
+  })
+})
