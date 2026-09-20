@@ -41,9 +41,48 @@ export interface CobrancaPixCriada {
   taxa_plataforma: number | null
 }
 
+/**
+ * Status possíveis de uma cobrança no provedor. `PAID` é o único que consolida
+ * venda; `APPROVED` aparece em outros fluxos e NÃO significa dinheiro na conta.
+ */
+export type StatusCobranca =
+  | "PENDING"
+  | "PAID"
+  | "EXPIRED"
+  | "CANCELLED"
+  | "UNDER_DISPUTE"
+  | "REFUNDED"
+  | "REDEEMED"
+  | "APPROVED"
+  | "FAILED"
+
+export interface StatusCobrancaPix {
+  payment_id: string
+  status: StatusCobranca
+  /** Atalho para não espalhar a comparação com "PAID" pelo código. */
+  pago: boolean
+  expira_em: Date | null
+}
+
 export interface IPagamentoGateway {
   /** RF03.1: gera a cobrança Pix e devolve o QR Code. */
   criarCobrancaPix(params: CriarCobrancaPixParams): Promise<CobrancaPixCriada>
+  /**
+   * Consulta o status da cobrança (polling). É o caminho que o PDV usa
+   * enquanto o webhook não está configurado: o cliente está no balcão e o
+   * caixa pergunta "já caiu?" a cada poucos segundos.
+   *
+   * Limite conhecido: se o caixa fechar a tela antes de o cliente pagar,
+   * ninguém consulta mais e a venda trava em PENDENTE. Cobrir esse caso é o
+   * papel do webhook — os dois se complementam, não são alternativas.
+   */
+  consultarCobrancaPix(paymentId: string): Promise<StatusCobrancaPix>
+  /**
+   * SOMENTE DESENVOLVIMENTO: marca uma cobrança como paga sem pagamento real.
+   * A própria AbacatePay recusa com chave de produção ("only works with
+   * sandbox API keys"), mas não confie só nisso — ver a trava em `routes.ts`.
+   */
+  simularPagamentoPix(paymentId: string): Promise<StatusCobrancaPix>
   /**
    * RNF02. Recebe o corpo CRU da requisição, não o objeto já parseado: a
    * assinatura é calculada sobre os bytes exatos que o provedor enviou, e

@@ -4,6 +4,8 @@ import type {
   CobrancaPixCriada,
   CriarCobrancaPixParams,
   IPagamentoGateway,
+  StatusCobranca,
+  StatusCobrancaPix,
 } from "./IPagamentoGateway"
 
 /**
@@ -14,17 +16,24 @@ import type {
  *   quem decide o ambiente é a chave de API (chave de dev simula transação).
  *   Não existe URL de sandbox separada.
  * - auth: `Authorization: Bearer <chave>`
- * - cobrança Pix: POST /transparents/create
+ * - criar cobrança Pix: POST /transparents/create
+ * - consultar status:   GET  /transparents/check?id=<payment_id>
+ * - simular pagamento:  POST /transparents/simulate-payment?id=<payment_id>
  * - webhook: header `X-Webhook-Signature`, HMAC-SHA256 do corpo cru, em base64
+ *
+ * Atenção ao procurar na internet: `/pixQrCode/*` é a API v1 ANTIGA. O fluxo
+ * atual de QR Code Pix é `/transparents/*`, e é o único documentado na v2.
  *
  * https://docs.abacatepay.com/pages/authentication
  * https://docs.abacatepay.com/pages/transparents/create
+ * https://docs.abacatepay.com/pages/transparents/check
+ * https://docs.abacatepay.com/pages/transparents/simulate-payment
  * https://docs.abacatepay.com/pages/webhooks
  */
 const BASE_URL_PADRAO = "https://api.abacatepay.com/v2"
 
 /** Recorte do envelope de resposta do provedor que nos interessa. */
-interface RespostaTransparentCreate {
+interface RespostaTransparent {
   success?: boolean
   error?: string | null
   data?: {
@@ -105,7 +114,7 @@ export class AbacatePayGateway implements IPagamentoGateway {
       )
     }
 
-    const json = (await resposta.json()) as RespostaTransparentCreate
+    const json = (await resposta.json()) as RespostaTransparent
     const data = json.data
 
     if (!data?.id || !data.brCode || !data.brCodeBase64) {
@@ -124,6 +133,70 @@ export class AbacatePayGateway implements IPagamentoGateway {
       // platformFee vem em centavos, como todo valor do provedor.
       taxa_plataforma:
         typeof data.platformFee === "number" ? data.platformFee / 100 : null,
+    }
+  }
+
+  async consultarCobrancaPix(paymentId: string): Promise<StatusCobrancaPix> {
+    return this.chamarStatus("GET", "/transparents/check", paymentId)
+  }
+
+  async simularPagamentoPix(paymentId: string): Promise<StatusCobrancaPix> {
+    return this.chamarStatus("POST", "/transparents/simulate-payment", paymentId)
+  }
+
+  /**
+   * `check` e `simulate-payment` têm a MESMA forma: id na query string e o
+   * mesmo envelope de resposta. O que muda é só o verbo e o caminho.
+   */
+  private async chamarStatus(
+    metodo: "GET" | "POST",
+    caminho: string,
+    paymentId: string
+  ): Promise<StatusCobrancaPix> {
+    if (!this.apiKey) {
+      throw new Error("ABACATEPAY_API_KEY não configurada.")
+    }
+
+    // O id vai na QUERY STRING, não no caminho — inclusive no POST de
+    // simulate-payment, que não tem corpo.
+    const url = new URL(`${this.baseUrl}${caminho}`)
+    url.searchParams.set("id", paymentId)
+
+    const resposta = await fetch(url.toString(), {
+      method: metodo,
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    })
+
+    if (!resposta.ok) {
+      const texto = await resposta.text().catch(() => "")
+      throw new BadRequestError(
+        `A AbacatePay recusou a consulta (HTTP ${resposta.status}).`,
+        "GATEWAY_PAGAMENTO_ERRO",
+        { status: resposta.status, resposta: texto.slice(0, 500) }
+      )
+    }
+
+    const json = (await resposta.json()) as RespostaTransparent
+    const data = json.data
+
+    if (!data?.id || !data.status) {
+      throw new BadRequestError(
+        "Resposta da AbacatePay sem id ou status da cobrança.",
+        "GATEWAY_PAGAMENTO_RESPOSTA_INVALIDA",
+        { erro: json.error ?? null }
+      )
+    }
+
+    const status = data.status as StatusCobranca
+
+    return {
+      payment_id: data.id,
+      status,
+      // Só PAID vale como dinheiro na conta. APPROVED existe em outros fluxos
+      // do provedor e NÃO significa pagamento liquidado — tratar como pago
+      // daria baixa de estoque em venda que pode não ter sido paga.
+      pago: status === "PAID",
+      expira_em: data.expiresAt ? new Date(data.expiresAt) : null,
     }
   }
 

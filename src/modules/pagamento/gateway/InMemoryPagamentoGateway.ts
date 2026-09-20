@@ -1,9 +1,12 @@
 import crypto from "node:crypto"
 import { randomUUID } from "node:crypto"
+import { NotFoundError } from "@/shared/errors"
 import type {
   CobrancaPixCriada,
   CriarCobrancaPixParams,
   IPagamentoGateway,
+  StatusCobranca,
+  StatusCobrancaPix,
 } from "./IPagamentoGateway"
 
 /**
@@ -18,9 +21,13 @@ export class InMemoryPagamentoGateway implements IPagamentoGateway {
 
   constructor(private readonly webhookSecret = "segredo-de-teste") {}
 
+  /** Status por payment_id, para os testes controlarem o ciclo da cobrança. */
+  private readonly status = new Map<string, StatusCobranca>()
+
   async criarCobrancaPix(params: CriarCobrancaPixParams): Promise<CobrancaPixCriada> {
     const payment_id = `pix_char_${randomUUID()}`
     this.cobrancas.push({ ...params, payment_id })
+    this.status.set(payment_id, "PENDING")
 
     return {
       payment_id,
@@ -29,6 +36,35 @@ export class InMemoryPagamentoGateway implements IPagamentoGateway {
       expira_em: new Date(Date.now() + params.expira_em_segundos * 1000),
       taxa_plataforma: 0.8,
     }
+  }
+
+  async consultarCobrancaPix(paymentId: string): Promise<StatusCobrancaPix> {
+    const status = this.status.get(paymentId)
+
+    if (!status) {
+      throw new NotFoundError("Cobrança não encontrada.", "COBRANCA_NAO_ENCONTRADA")
+    }
+
+    return {
+      payment_id: paymentId,
+      status,
+      pago: status === "PAID",
+      expira_em: null,
+    }
+  }
+
+  async simularPagamentoPix(paymentId: string): Promise<StatusCobrancaPix> {
+    if (!this.status.has(paymentId)) {
+      throw new NotFoundError("Cobrança não encontrada.", "COBRANCA_NAO_ENCONTRADA")
+    }
+
+    this.status.set(paymentId, "PAID")
+    return this.consultarCobrancaPix(paymentId)
+  }
+
+  /** Helper de teste: força um status qualquer (expirada, cancelada...). */
+  definirStatus(paymentId: string, status: StatusCobranca) {
+    this.status.set(paymentId, status)
   }
 
   verificarAssinaturaWebhook(corpoCru: Buffer, assinatura: string | undefined): boolean {
