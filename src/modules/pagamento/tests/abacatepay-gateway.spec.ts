@@ -166,6 +166,103 @@ describe("AbacatePayGateway.criarCobrancaPix (#52 — RF03.1)", () => {
   })
 })
 
+describe("AbacatePayGateway.consultarCobrancaPix (#52 — polling)", () => {
+  function respostaStatus(status: string) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        error: null,
+        data: { id: "pix_char_abc", status, expiresAt: "2026-09-21T19:38:28.573Z" },
+      }),
+    } as unknown as Response
+  }
+
+  it("manda o id na QUERY STRING, não no caminho", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(respostaStatus("PENDING"))
+
+    await gateway().consultarCobrancaPix("pix_char_abc")
+
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe("https://api.abacatepay.test/v2/transparents/check?id=pix_char_abc")
+    expect(init?.method).toBe("GET")
+  })
+
+  it("PAID vira pago: true", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaStatus("PAID"))
+
+    const status = await gateway().consultarCobrancaPix("pix_char_abc")
+
+    expect(status.status).toBe("PAID")
+    expect(status.pago).toBe(true)
+  })
+
+  it("PENDING vira pago: false", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaStatus("PENDING"))
+
+    expect((await gateway().consultarCobrancaPix("pix_char_abc")).pago).toBe(false)
+  })
+
+  it("APPROVED NÃO conta como pago", async () => {
+    // APPROVED existe em outros fluxos do provedor e não significa dinheiro
+    // liquidado. Tratar como pago daria baixa de estoque em venda não paga.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaStatus("APPROVED"))
+
+    const status = await gateway().consultarCobrancaPix("pix_char_abc")
+
+    expect(status.status).toBe("APPROVED")
+    expect(status.pago).toBe(false)
+  })
+
+  it.each(["EXPIRED", "CANCELLED", "REFUNDED", "FAILED", "UNDER_DISPUTE"])(
+    "%s não conta como pago",
+    async (valor) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaStatus(valor))
+
+      expect((await gateway().consultarCobrancaPix("pix_char_abc")).pago).toBe(false)
+    }
+  )
+})
+
+describe("AbacatePayGateway.simularPagamentoPix (#52 — só dev)", () => {
+  it("usa POST no /transparents/simulate-payment com o id na query", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { id: "pix_char_abc", status: "PAID", devMode: true },
+      }),
+    } as unknown as Response)
+
+    const status = await gateway().simularPagamentoPix("pix_char_abc")
+
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe(
+      "https://api.abacatepay.test/v2/transparents/simulate-payment?id=pix_char_abc"
+    )
+    expect(init?.method).toBe("POST")
+    expect(status.pago).toBe(true)
+  })
+
+  it("erro do provedor (ex: chave de produção) vira BadRequestError", async () => {
+    // A AbacatePay recusa este endpoint fora do modo dev.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => '{"error":"only works with sandbox API keys"}',
+    } as unknown as Response)
+
+    await expect(gateway().simularPagamentoPix("pix_char_abc")).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GATEWAY_PAGAMENTO_ERRO",
+    })
+  })
+})
+
 describe("AbacatePayGateway.verificarAssinaturaWebhook (#52 — RNF02)", () => {
   const corpo = JSON.stringify({ id: "log_1", event: "transparent.completed" })
 
