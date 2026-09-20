@@ -6653,6 +6653,175 @@
           "response": []
         },
         {
+          "name": "200 - Cancelar a venda (RF05.1 / RF05.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda cancelada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status vira CANCELADO e registra quem cancelou', function () {",
+                  "  pm.expect(pm.response.json().status_pagamento).to.eql('CANCELADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda/{{vendaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "{{vendaId}}",
+                "cancelar"
+              ]
+            },
+            "description": "Cancela a venda em dinheiro feita acima. Devolve os itens ao estoque com rastro de auditoria (RN03), na mesma transacao da mudanca de status."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Cancelar a mesma venda duas vezes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 na segunda vez', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VENDA_JA_CANCELADA', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VENDA_JA_CANCELADA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda/{{vendaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "{{vendaId}}",
+                "cancelar"
+              ]
+            },
+            "description": "Sem esta trava, cancelar duas vezes devolveria o produto ao estoque em dobro — mercadoria criada do nada."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN03: auditoria ficou com as duas pontas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Tem a SAIDA da venda e a ENTRADA do estorno', function () {",
+                  "  var motivos = pm.response.json().data.map(function (m) { return m.motivo; });",
+                  "  pm.expect(motivos).to.include('VENDA');",
+                  "  pm.expect(motivos).to.include('ESTORNO_VENDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ]
+            },
+            "description": "A SAIDA da venda NAO some: o historico guarda a venda e o estorno. E o estoque voltou uma unica vez, nao duas."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Estoque voltou apos o cancelamento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo 9: o 0.5 kg da venda cancelada voltou', function () {",
+                  "  var id = pm.collectionVariables.get('vendaProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === id; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(9);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            },
+            "description": "Saldo: 10 inicial, -0.5 da venda em dinheiro, -1 da venda no cartao, +0.5 devolvido = 9."
+          },
+          "response": []
+        },
+        {
           "name": "200 - Fechar o caixa",
           "event": [
             {
@@ -6755,7 +6924,7 @@
           "response": []
         }
       ],
-      "description": "Fluxo de PDV de ponta a ponta: busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50 e #51), com asserções `pm.test`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria dono, loja, produto e abre o caixa.\n\n**O que esta pasta prova**:\n- **RN01 (baixa postergada)**: `POST /venda/calcular` não grava nada — o request seguinte confere o saldo intacto em 10, e só depois do pagamento ele cai para 9.5.\n- **Venda exige turno aberto**: o 409 `TURNO_FECHADO` aparece duas vezes, antes de abrir e depois de fechar o caixa.\n- **RNF01**: o 409 de estoque insuficiente não deixa venda gravada nem linha de auditoria.\n- **RN05**: a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA` na mesma transação.\n- **Pix fora da rota manual**: `PIX_ABACATEPAY` é recusado com 400, porque não é confirmação manual do caixa."
+      "description": "Fluxo de PDV de ponta a ponta: busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50 e #51), com asserções `pm.test`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria dono, loja, produto e abre o caixa.\n\n**O que esta pasta prova**:\n- **RN01 (baixa postergada)**: `POST /venda/calcular` não grava nada — o request seguinte confere o saldo intacto em 10, e só depois do pagamento ele cai para 9.5.\n- **Venda exige turno aberto**: o 409 `TURNO_FECHADO` aparece duas vezes, antes de abrir e depois de fechar o caixa.\n- **RNF01**: o 409 de estoque insuficiente não deixa venda gravada nem linha de auditoria.\n- **RN05**: a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA` na mesma transação.\n- **#53 (cancelamento)**: só Owner/Gestor cancela; cancelar devolve ao estoque com rastro `ESTORNO_VENDA` sem apagar a `SAIDA` original, e a segunda tentativa é barrada com 409 para o estoque não voltar em dobro.\n- **Pix fora da rota manual**: `PIX_ABACATEPAY` é recusado com 400, porque não é confirmação manual do caixa."
     }
   ],
   "variable": [
