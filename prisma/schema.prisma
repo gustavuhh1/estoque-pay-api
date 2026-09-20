@@ -138,7 +138,8 @@ model User {
 
   estabelecimentos MembroEstabelecimento[]
 
-  turnos            TurnoCaixa[]
+  turnos_abertos    TurnoCaixa[]          @relation("TurnosAbertos")
+  turnos_fechados   TurnoCaixa[]          @relation("TurnosFechados")
   vendas            Venda[]               @relation("VendasOperador")
   vendas_canceladas Venda[]               @relation("VendasCanceladas")
   movimentacoes     MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
@@ -356,10 +357,20 @@ model MovimentacaoEstoque {
 
 // Módulo: PDV & Vendas
 
+/// Um turno ABERTO por LOJA de cada vez (não por pessoa): o turno representa
+/// "o caixa da loja está aberto", amarrado ao dia de funcionamento. Qualquer
+/// cargo abre e fecha — inclusive CASHIER —, e quem fecha pode ser diferente de
+/// quem abriu, por isso as duas pontas são registradas.
+///
+/// A trava de "um aberto por loja" é um índice único PARCIAL criado em SQL puro
+/// na migration `turno_caixa_abertura_fechamento` (o Prisma não declara índice
+/// único condicional no schema). Sem ela, dois cliques simultâneos em "abrir
+/// caixa" passariam os dois por uma verificação feita apenas no service.
 model TurnoCaixa {
   id                 String      @id @default(uuid())
   estabelecimento_id String
-  usuario_id         String
+  aberto_por_id      String
+  fechado_por_id     String?
   valor_abertura     Decimal     @db.Decimal(10, 2)
   valor_fechamento   Decimal?    @db.Decimal(10, 2)
   status             StatusTurno @default(ABERTO)
@@ -367,11 +378,13 @@ model TurnoCaixa {
   fechado_em         DateTime?
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  users           User            @relation(fields: [usuario_id], references: [id])
+  aberto_por      User            @relation("TurnosAbertos", fields: [aberto_por_id], references: [id])
+  fechado_por     User?           @relation("TurnosFechados", fields: [fechado_por_id], references: [id])
   vendas          Venda[]
 
   @@index([estabelecimento_id, status])
-  @@index([usuario_id])
+  @@index([aberto_por_id])
+  @@index([fechado_por_id])
   @@map("turnos_caixa")
 }
 

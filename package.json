@@ -15,7 +15,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "test:db": "dotenv -e .env.test -- prisma db push --accept-data-loss",
+    "test:db": "dotenv -e .env.test -- prisma migrate reset --force",
     "test": "npm run test:db && dotenv -e .env.test -- vitest run",
     "test:watch": "npm run test:db && dotenv -e .env.test -- vitest",
     "test:ui": "npm run test:db && dotenv -e .env.test -- vitest --ui",

@@ -108,6 +108,24 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Tentativa de abrir turno numa loja que já tem um turno ABERTO. O turno é por
+ * LOJA, não por pessoa — enquanto o caixa da loja estiver aberto, ninguém abre
+ * outro, seja quem for.
+ *
+ * O Service checa antes para dar este erro de forma amigável, mas também
+ * converte o P2002 do índice único parcial `turnos_caixa_um_aberto_por_loja`:
+ * dois cliques simultâneos passariam os dois pela checagem prévia, e nesse caso
+ * é o banco que barra o segundo.
+ */
+export class TurnoJaAbertoError extends ConflictError {
+  constructor(
+    message = "Esta loja já possui um turno de caixa aberto. Feche o turno atual antes de abrir outro."
+  ) {
+    super(message, "TURNO_JA_ABERTO")
+  }
+}
+
+/**
  * Saída manual maior que o saldo em estoque. É 409 (e não 400) porque o corpo
  * da requisição está bem formado — o conflito é com o estado atual do produto,
  * que pode mudar a qualquer momento. `details` leva o saldo para o cliente
