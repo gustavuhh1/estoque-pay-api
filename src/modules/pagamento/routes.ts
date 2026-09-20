@@ -2,14 +2,23 @@ import type { FastifyInstance } from "fastify"
 import type { ZodTypeProvider } from "@fastify/type-provider-zod"
 import { WebhookController } from "./controller/WebhookController"
 import { PixController } from "./controller/PixController"
+import { PagamentoController } from "./controller/PagamentoController"
+import { PagamentoService } from "./service/PagamentoService"
 import { AbacatePayGateway } from "./gateway/AbacatePayGateway"
 import type { IPagamentoGateway } from "./gateway/IPagamentoGateway"
+import { VendaPrismaRepository } from "@/modules/venda/repository/VendaPrismaRepository"
+import { VendaService } from "@/modules/venda/service/VendaService"
+import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePrismaRepository"
+import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
+import { CaixaPrismaRepository } from "@/modules/caixa/repository/CaixaPrismaRepository"
+import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
 import { UnauthorizedError } from "@/shared/errors"
 import { errorResponseSchema } from "@/shared/errors/schema"
 import { webhookAbacatePaySchema, webhookResponseSchema } from "./dto/webhook.dto"
 import { paymentIdParamsSchema, statusCobrancaResponseSchema } from "./dto/pix.dto"
+import { pagamentoResponseSchema, registrarPagamentoSchema } from "./dto/pagamento.dto"
 
 // Mesmo padrão de augmentation inline dos middlewares (o tsconfig usa `types: []`).
 declare module "fastify" {
@@ -30,7 +39,48 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
     const webhookController = new WebhookController()
     const pixController = new PixController(gateway)
 
+    // Wiring do pagamento manual (#51). O VendaPrismaRepository recebe o
+    // repositório de Estoque para a baixa rodar dentro da transação da venda.
+    const estoqueRepository = new EstoquePrismaRepository(prisma)
+    const pagamentoController = new PagamentoController(
+      new PagamentoService(
+        new VendaPrismaRepository(prisma, estoqueRepository),
+        new VendaService(new ProdutoPrismaRepository(prisma)),
+        new CaixaPrismaRepository(prisma)
+      )
+    )
+
     const route = app.withTypeProvider<ZodTypeProvider>()
+
+    route.post(
+      "/",
+      {
+        preHandler: [requireAuth, requireTenant],
+        schema: {
+          tags: ["Pagamento"],
+          summary: "Registra o pagamento manual e fecha a venda",
+          description:
+            "RF02.1/RF02.2 + **RNF01**. Requer o header `x-estabelecimento-id`. Aceita `DINHEIRO`, `DEBITO` e `CREDITO` — **Pix não entra aqui**, porque não é confirmação manual do caixa (nasce PENDENTE e só vira PAGO pelo webhook ou polling). Em `DINHEIRO`, `valor_pago` é obrigatório e o troco volta na resposta. A venda exige **turno de caixa aberto** (409 se fechado). Os preços são relidos do banco, nunca aceitos do cliente. **Tudo numa transação**: Venda, ItemVenda, baixa de estoque e auditoria — se a baixa de um item estourar o saldo, a venda inteira volta atrás. Qualquer cargo pode vender, inclusive Caixa.",
+          security: [{ cookieAuth: [] }],
+          body: registrarPagamentoSchema,
+          response: {
+            201: pagamentoResponseSchema,
+            400: errorResponseSchema.describe(
+              "Dados inválidos (code: VALIDATION_ERROR), valor pago menor que o total (code: VALOR_PAGO_INSUFICIENTE) ou header de tenant ausente"
+            ),
+            401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+            403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+            404: errorResponseSchema.describe(
+              "Produto não encontrado (code: PRODUTO_NAO_ENCONTRADO) ou inativo (code: PRODUTO_INATIVO)"
+            ),
+            409: errorResponseSchema.describe(
+              "Caixa fechado (code: TURNO_FECHADO) ou estoque insuficiente (code: ESTOQUE_INSUFICIENTE)"
+            ),
+          },
+        },
+      },
+      async (req, res) => pagamentoController.registrar(req, res)
+    )
 
     route.get(
       "/pix/:payment_id/status",
