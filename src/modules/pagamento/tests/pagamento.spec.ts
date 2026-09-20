@@ -47,10 +47,11 @@ describe("PagamentoService.registrarPagamentoManual (#51 — RF02.1/RF02.2/RNF01
 
   beforeEach(() => {
     const estoqueRepository = new EstoquePrismaRepository(prisma)
+    const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
     caixaRepository = new CaixaPrismaRepository(prisma)
     sut = new PagamentoService(
-      new VendaPrismaRepository(prisma, estoqueRepository),
-      new VendaService(new ProdutoPrismaRepository(prisma)),
+      vendaRepository,
+      new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
       caixaRepository
     )
   })

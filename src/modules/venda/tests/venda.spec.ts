@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto"
 import { prisma } from "@/lib/prisma"
 import { NotFoundError } from "@/shared/errors"
 import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
+import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePrismaRepository"
+import { VendaPrismaRepository } from "../repository/VendaPrismaRepository"
 import { VendaService } from "../service/VendaService"
 
 const CNPJ_VALIDO = "11222333000181"
@@ -42,7 +44,10 @@ describe("VendaService", () => {
   let sut: VendaService
 
   beforeEach(() => {
-    sut = new VendaService(new ProdutoPrismaRepository(prisma))
+    sut = new VendaService(
+      new ProdutoPrismaRepository(prisma),
+      new VendaPrismaRepository(prisma, new EstoquePrismaRepository(prisma))
+    )
   })
 
   describe("buscarProdutos (#50 — RF01.1)", () => {

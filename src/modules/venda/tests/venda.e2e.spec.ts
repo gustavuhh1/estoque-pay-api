@@ -321,6 +321,34 @@ describe("Venda e Pagamento - E2E (#50 / #51)", () => {
       expect(response.statusCode).toBe(401)
     })
 
+    it("201 — sem turno aberto após fechar o caixa volta a dar 409", async () => {
+      const loja = await criarEstabelecimento()
+      const { cookie } = await criarOperador(loja.id, "OWNER")
+      await abrirCaixa(loja.id, cookie)
+      const headers = { cookie, "x-estabelecimento-id": loja.id }
+      const produto = await criarProduto(loja.id)
+
+      await app.inject({
+        method: "PATCH",
+        url: "/caixa/turno/atual",
+        headers,
+        payload: { valor_fechamento: 300 },
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/pagamento",
+        headers,
+        payload: {
+          itens: [{ produto_id: produto.id, quantidade: 1 }],
+          metodo_pagamento: "DEBITO",
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json().code).toBe("TURNO_FECHADO")
+    })
+
     it("fluxo completo: busca, calcula, paga e confere o estoque", async () => {
       const loja = await criarEstabelecimento()
       const { cookie } = await criarOperador(loja.id)
@@ -365,6 +393,114 @@ describe("Venda e Pagamento - E2E (#50 / #51)", () => {
 
       const noBanco = await prisma.produto.findUniqueOrThrow({ where: { id: produtoId } })
       expect(Number(noBanco.quantidade_atual)).toBe(9.5)
+    })
+  })
+
+  describe("POST /venda/:venda_id/cancelar (#53 — RF05.1/RF05.2)", () => {
+    /** Vende para ter o que cancelar, devolvendo os ids e o cookie do dono. */
+    async function venderComDono(role: Role = "OWNER") {
+      const loja = await criarEstabelecimento()
+      const { cookie } = await criarOperador(loja.id, role)
+      await abrirCaixa(loja.id, cookie)
+      const headers = { cookie, "x-estabelecimento-id": loja.id }
+      const produto = await criarProduto(loja.id, { quantidade_atual: 10 })
+
+      const pagamento = await app.inject({
+        method: "POST",
+        url: "/pagamento",
+        headers,
+        payload: {
+          itens: [{ produto_id: produto.id, quantidade: 3 }],
+          metodo_pagamento: "DEBITO",
+        },
+      })
+
+      return { loja, cookie, headers, produto, vendaId: pagamento.json().venda_id }
+    }
+
+    it("200 — cancela e devolve o estoque", async () => {
+      const { headers, produto, vendaId } = await venderComDono()
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers,
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().status_pagamento).toBe("CANCELADO")
+
+      const noBanco = await prisma.produto.findUniqueOrThrow({ where: { id: produto.id } })
+      expect(Number(noBanco.quantidade_atual)).toBe(10)
+    })
+
+    it("403 — CASHIER não pode cancelar (RN02)", async () => {
+      const { loja, vendaId } = await venderComDono("OWNER")
+      const caixa = await criarOperador(loja.id, "CASHIER")
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers: { cookie: caixa.cookie, "x-estabelecimento-id": loja.id },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json().code).toBe("ROLE_CANNOT_CANCEL_VENDA")
+    })
+
+    it("409 — cancelar duas vezes", async () => {
+      const { headers, vendaId } = await venderComDono()
+
+      await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers,
+      })
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers,
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json().code).toBe("VENDA_JA_CANCELADA")
+    })
+
+    it("404 — venda de outra loja", async () => {
+      const { vendaId } = await venderComDono()
+      const outraLoja = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
+      const intruso = await criarOperador(outraLoja.id, "OWNER")
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers: { cookie: intruso.cookie, "x-estabelecimento-id": outraLoja.id },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json().code).toBe("VENDA_NAO_ENCONTRADA")
+    })
+
+    it("200 — a auditoria fica com as duas pontas (RN03)", async () => {
+      const { headers, vendaId } = await venderComDono()
+
+      await app.inject({
+        method: "POST",
+        url: `/venda/${vendaId}/cancelar`,
+        headers,
+      })
+
+      const auditoria = await app.inject({
+        method: "GET",
+        url: "/estoque/movimentacoes",
+        headers,
+      })
+
+      expect(auditoria.json().total).toBe(2)
+      const motivos = auditoria.json().data.map((m: { motivo: string }) => m.motivo)
+      expect(motivos).toContain("VENDA")
+      expect(motivos).toContain("ESTORNO_VENDA")
     })
   })
 })
