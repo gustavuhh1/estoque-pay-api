@@ -7,6 +7,18 @@ vi.mock("./src/lib/brevo", () => ({
   sendEmail: vi.fn().mockResolvedValue({ messageId: "mocked_message_id" }),
 }))
 
+/**
+ * Segredo do webhook da AbacatePay (#52). Fixado AQUI, e não no `.env.test`,
+ * porque `.env.test` está no .gitignore — quem clonasse o repo rodaria os
+ * testes sem a variável e o `createHmac` estouraria com um erro sem relação
+ * aparente com o teste. Forçar o valor também deixa a suíte determinística para
+ * quem tem um segredo real configurado localmente.
+ *
+ * Nada aqui toca a rede: a validação de assinatura é crypto puro.
+ */
+process.env.ABACATEPAY_WEBHOOK_SECRET = "segredo-de-webhook-de-teste"
+process.env.ABACATEPAY_API_KEY = "chave-de-teste-nao-usar"
+
 beforeEach(async () => {
   // Limpar os dados antes de cada teste no banco de testes.
   // Ordem filho -> pai: hoje o cascade daria conta sozinho, mas explicitar

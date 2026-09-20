@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
     "name": "EstoquePay",
-    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 403, 409), com asserções `pm.test`. Cobre onboarding (#39) e listagem/contexto/edição da loja ativa (#40). A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n- **Produto**: fluxo feliz **e** cenários de erro (401, 400, 404, 409) do CRUD de produtos (RF01.1-RF06.6, issues #43/#44/#45), com asserções `pm.test`. Também auto-suficiente. **Limite**: os cenários fiscais RN09.1/RN09.2 (loja com NFC-e ligada) não são reproduzíveis só com HTTP — não existe rota para ligar `emite_nfce` (o PATCH de estabelecimento descarta esse campo). Coberto nos testes automatizados (`produto.e2e.spec.ts`). O bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) já é reproduzível via HTTP desde que a pasta Equipe existe (issue #41), mas as duas pastas não estão encadeadas entre si nesta coleção.\n- **Equipe**: fluxo feliz **e** cenários de erro (401, 403, 404, 409) do módulo de equipe (RF05.1-RF05.4, issues #41/#42), com asserções `pm.test`. Também auto-suficiente. Cobre cadastro com vínculo direto (e-mail já tem conta) e com convite pendente (e-mail sem conta), listagem, edição de cargo, exclusão, RBAC (Caixa bloqueado, Gestor só atribui o cargo Caixa) e a trava do último Owner.\n- **Categoria**: CRUD de categorias e vínculo N:N com produtos (RF07.1-RF11.5, issue #46), com asserções `pm.test`. Também auto-suficiente. O vínculo é **incremental**: `POST /categoria/:id/produtos` adiciona (`connect`) e `DELETE /categoria/:id/produtos` remove (`disconnect`), sem mexer no resto do vínculo. Cobre também a RN08 (excluir a categoria não apaga o produto).\n- **Estoque**: movimentação manual, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test`. Também auto-suficiente. Cobre entrada, saída fracionada (RN04), a obrigatoriedade e a coerência do motivo (RF14.3), o 409 de estoque insuficiente, e a auditoria paginada e filtrada. O relatório roda logo depois do 409 de propósito: provar que a tentativa que falhou não deixou linha de auditoria é a evidência do rollback da transação (RN05). **Limite**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_CATEGORIAS` / `ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com a pasta Equipe e não é reproduzido nessas duas pastas — está coberto nos testes automatizados.\n- **Caixa**: abertura e fechamento do turno de caixa (RF06.1/RF06.2, issue #54), com asserções `pm.test`. Também auto-suficiente. O turno é por **loja**, não por pessoa — enquanto houver um turno ABERTO ninguém abre outro (409), e a trava é um índice único parcial no banco, não só uma checagem no código. **Único módulo sem bloqueio por cargo**: qualquer membro da loja abre e fecha, inclusive o Caixa. Quem abre e quem fecha são registrados em campos separados.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Multi-tenant (issue #40)**: as rotas `/estabelecimento/ativo` exigem o header `x-estabelecimento-id` (UUID da loja). Não existe endpoint de \"trocar de loja\" com estado no servidor — a API é stateless, quem decide qual loja está ativa é o cliente, a cada request.\n\n**Limite conhecido desta coleção**: os cenários de RBAC por cargo nas pastas Estabelecimento e Produto (Gestor bloqueado de editar CNPJ/Certificado A1, Caixa bloqueado de editar/gerenciar produtos) continuam inserindo o vínculo direto no banco nos testes automatizados, em vez de reproduzir por HTTP — cada pasta desta coleção cria sua própria loja isolada, então encadear a pasta Equipe (que já tem a rota real de vínculo, issue #41) antes delas exigiria compartilhar loja/sessão entre pastas, o que não foi feito aqui de propósito para não acoplar a ordem de execução das pastas. A pasta Equipe já prova o vínculo e o RBAC por HTTP de ponta a ponta por conta própria.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`, `ownerEmail2`, `ownerPassword2`, `cnpj2`, `estabelecimentoId2`. Da pasta Produto: `produtoOwnerEmail`, `produtoOwnerPassword`, `produtoCnpj`, `produtoCnpjMascarado`, `produtoEstabelecimentoId`, `produtoEanGtin`, `produtoId`. Da pasta Equipe: `equipeOwnerEmail`, `equipeOwnerPassword`, `equipeCnpjMascarado`, `equipeEstabelecimentoId`, `equipeOwnerMembroId`, `equipeFuncionarioEmail`, `equipeFuncionarioPassword`, `equipeMembroId`, `equipeConviteEmail`. Da pasta Categoria: `categoriaOwnerEmail`, `categoriaOwnerPassword`, `categoriaCnpj`, `categoriaCnpjMascarado`, `categoriaEstabelecimentoId`, `categoriaProdutoId`, `categoriaId`, `categoriaComProdutoId`. Da pasta Estoque: `estoqueOwnerEmail`, `estoqueOwnerPassword`, `estoqueCnpj`, `estoqueCnpjMascarado`, `estoqueEstabelecimentoId`, `estoqueProdutoId`, `estoqueProdutoAlertaId`. Da pasta Caixa: `caixaOwnerEmail`, `caixaOwnerPassword`, `caixaCnpj`, `caixaCnpjMascarado`, `caixaEstabelecimentoId`, `caixaTurnoId`. Não precisa editar à mão.",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 403, 409), com asserções `pm.test`. Cobre onboarding (#39) e listagem/contexto/edição da loja ativa (#40). A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n- **Produto**: fluxo feliz **e** cenários de erro (401, 400, 404, 409) do CRUD de produtos (RF01.1-RF06.6, issues #43/#44/#45), com asserções `pm.test`. Também auto-suficiente. **Limite**: os cenários fiscais RN09.1/RN09.2 (loja com NFC-e ligada) não são reproduzíveis só com HTTP — não existe rota para ligar `emite_nfce` (o PATCH de estabelecimento descarta esse campo). Coberto nos testes automatizados (`produto.e2e.spec.ts`). O bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) já é reproduzível via HTTP desde que a pasta Equipe existe (issue #41), mas as duas pastas não estão encadeadas entre si nesta coleção.\n- **Equipe**: fluxo feliz **e** cenários de erro (401, 403, 404, 409) do módulo de equipe (RF05.1-RF05.4, issues #41/#42), com asserções `pm.test`. Também auto-suficiente. Cobre cadastro com vínculo direto (e-mail já tem conta) e com convite pendente (e-mail sem conta), listagem, edição de cargo, exclusão, RBAC (Caixa bloqueado, Gestor só atribui o cargo Caixa) e a trava do último Owner.\n- **Categoria**: CRUD de categorias e vínculo N:N com produtos (RF07.1-RF11.5, issue #46), com asserções `pm.test`. Também auto-suficiente. O vínculo é **incremental**: `POST /categoria/:id/produtos` adiciona (`connect`) e `DELETE /categoria/:id/produtos` remove (`disconnect`), sem mexer no resto do vínculo. Cobre também a RN08 (excluir a categoria não apaga o produto).\n- **Estoque**: movimentação manual, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test`. Também auto-suficiente. Cobre entrada, saída fracionada (RN04), a obrigatoriedade e a coerência do motivo (RF14.3), o 409 de estoque insuficiente, e a auditoria paginada e filtrada. O relatório roda logo depois do 409 de propósito: provar que a tentativa que falhou não deixou linha de auditoria é a evidência do rollback da transação (RN05). **Limite**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_CATEGORIAS` / `ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com a pasta Equipe e não é reproduzido nessas duas pastas — está coberto nos testes automatizados.\n- **Caixa**: abertura e fechamento do turno de caixa (RF06.1/RF06.2, issue #54), com asserções `pm.test`. Também auto-suficiente. O turno é por **loja**, não por pessoa — enquanto houver um turno ABERTO ninguém abre outro (409), e a trava é um índice único parcial no banco, não só uma checagem no código. **Único módulo sem bloqueio por cargo**: qualquer membro da loja abre e fecha, inclusive o Caixa. Quem abre e quem fecha são registrados em campos separados.\n- **Venda e Pagamento**: fluxo completo do PDV — busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50/#51), com asserções `pm.test`. Também auto-suficiente. Prova a **RN01** (calcular não baixa estoque), a exigência de **turno aberto** para vender, a **RNF01** (409 de estoque insuficiente não deixa venda nem auditoria) e a **RN05** (a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA`). Pix não entra aqui: é recusado com 400 porque não é confirmação manual do caixa.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Multi-tenant (issue #40)**: as rotas `/estabelecimento/ativo` exigem o header `x-estabelecimento-id` (UUID da loja). Não existe endpoint de \"trocar de loja\" com estado no servidor — a API é stateless, quem decide qual loja está ativa é o cliente, a cada request.\n\n**Limite conhecido desta coleção**: os cenários de RBAC por cargo nas pastas Estabelecimento e Produto (Gestor bloqueado de editar CNPJ/Certificado A1, Caixa bloqueado de editar/gerenciar produtos) continuam inserindo o vínculo direto no banco nos testes automatizados, em vez de reproduzir por HTTP — cada pasta desta coleção cria sua própria loja isolada, então encadear a pasta Equipe (que já tem a rota real de vínculo, issue #41) antes delas exigiria compartilhar loja/sessão entre pastas, o que não foi feito aqui de propósito para não acoplar a ordem de execução das pastas. A pasta Equipe já prova o vínculo e o RBAC por HTTP de ponta a ponta por conta própria.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`, `ownerEmail2`, `ownerPassword2`, `cnpj2`, `estabelecimentoId2`. Da pasta Produto: `produtoOwnerEmail`, `produtoOwnerPassword`, `produtoCnpj`, `produtoCnpjMascarado`, `produtoEstabelecimentoId`, `produtoEanGtin`, `produtoId`. Da pasta Equipe: `equipeOwnerEmail`, `equipeOwnerPassword`, `equipeCnpjMascarado`, `equipeEstabelecimentoId`, `equipeOwnerMembroId`, `equipeFuncionarioEmail`, `equipeFuncionarioPassword`, `equipeMembroId`, `equipeConviteEmail`. Da pasta Categoria: `categoriaOwnerEmail`, `categoriaOwnerPassword`, `categoriaCnpj`, `categoriaCnpjMascarado`, `categoriaEstabelecimentoId`, `categoriaProdutoId`, `categoriaId`, `categoriaComProdutoId`. Da pasta Estoque: `estoqueOwnerEmail`, `estoqueOwnerPassword`, `estoqueCnpj`, `estoqueCnpjMascarado`, `estoqueEstabelecimentoId`, `estoqueProdutoId`, `estoqueProdutoAlertaId`. Da pasta Caixa: `caixaOwnerEmail`, `caixaOwnerPassword`, `caixaCnpj`, `caixaCnpjMascarado`, `caixaEstabelecimentoId`, `caixaTurnoId`. Da pasta Venda e Pagamento: `vendaOwnerEmail`, `vendaOwnerPassword`, `vendaCnpj`, `vendaCnpjMascarado`, `vendaEstabelecimentoId`, `vendaProdutoId`, `vendaId`. Não precisa editar à mão.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "19052417"
   },
@@ -5720,6 +5720,1211 @@
         }
       ],
       "description": "Abertura e fechamento do turno de caixa (RF06.1/RF06.2, issue #54), com asserções `pm.test` espelhando `src/modules/caixa/tests/caixa.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono e uma loja próprios desta pasta.\n\n**Duas regras que esta pasta prova**: o turno é por **loja** e não por pessoa (o 409 ao tentar abrir o segundo), e **qualquer cargo abre e fecha** — não há bloqueio por cargo neste módulo, ao contrário de todo o resto da Fase 03. Quem abre e quem fecha ficam em campos separados, então podem ser pessoas diferentes."
+    },
+    {
+      "name": "Venda e Pagamento",
+      "item": [
+        {
+          "name": "401 - Pagar sem sessão",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try {",
+                  "  pm.cookies.jar().clear(pm.request.url, function () {});",
+                  "} catch (e) {",
+                  "  console.log('Nao consegui limpar o cookie jar.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 401 sem sessao', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"00000000-0000-0000-0000-000000000000\", \"quantidade\": 1 }],\n  \"metodo_pagamento\": \"DEBITO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            },
+            "description": "Body válido de propósito: o `requireAuth` roda antes do `requireTenant`, então um body inválido devolveria 400 e mascararia o 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('vendaOwnerEmail', 'dono-venda-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('vendaOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('vendaCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'vendaCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendaOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Vendas\",\n  \"password\": \"{{vendaOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendaOwnerEmail}}\",\n  \"password\": \"{{vendaOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('vendaEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Vendas\",\n  \"cnpj\": \"{{vendaCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto (Queijo, R$ 40/kg, saldo 10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('vendaProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Queijo Minas Venda\",\n  \"tipo_medida\": \"FRACIONADO_KG\",\n  \"preco_custo\": 20,\n  \"preco_venda\": 40,\n  \"quantidade_atual\": 10,\n  \"quantidade_minima\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Vender com o caixa fechado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 com o caixa fechado', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e TURNO_FECHADO', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('TURNO_FECHADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 1 }],\n  \"metodo_pagamento\": \"DEBITO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            },
+            "description": "Roda ANTES de abrir o caixa de propósito: toda venda precisa estar amarrada a um turno, senão o fechamento de caixa não consegue apontar furo."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Abrir o caixa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Turno aberto (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor_abertura\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/caixa/turno",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caixa",
+                "turno"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Buscar produto por nome (RF01.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Busca retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Achou o produto do setup', function () {",
+                  "  var ids = pm.response.json().map(function (p) { return p.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('vendaProdutoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda/buscar?termo=Queijo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "buscar"
+              ],
+              "query": [
+                {
+                  "key": "termo",
+                  "value": "Queijo"
+                }
+              ]
+            },
+            "description": "Casa parcial no nome e exato no código de barras. Produto inativo NÃO aparece aqui, ao contrário do GET /produto (listagem de gestão)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Calcular carrinho sem gravar nada (RN01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Calculo retornado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('0.5 kg x R$ 40 = R$ 20', function () {",
+                  "  pm.expect(pm.response.json().total).to.eql(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 0.5 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/venda/calcular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "calcular"
+              ]
+            },
+            "description": "RN01 (baixa postergada): calcular NÃO grava Venda, nem ItemVenda, nem mexe no estoque. O request seguinte prova o saldo intacto."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN01: estoque intacto após o cálculo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo continua 10 — calcular nao baixou estoque', function () {",
+                  "  var id = pm.collectionVariables.get('vendaProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === id; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(10);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Pagar em dinheiro sem informar valor_pago",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 sem valor_pago', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALIDATION_ERROR', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 0.5 }],\n  \"metodo_pagamento\": \"DINHEIRO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Valor pago menor que o total",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para valor insuficiente', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VALOR_PAGO_INSUFICIENTE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VALOR_PAGO_INSUFICIENTE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 0.5 }],\n  \"metodo_pagamento\": \"DINHEIRO\",\n  \"valor_pago\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Pix não é aceito na rota de pagamento manual",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 400 para Pix na rota manual', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 0.5 }],\n  \"metodo_pagamento\": \"PIX_ABACATEPAY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            },
+            "description": "Pix não é confirmação manual do caixa: nasce PENDENTE e só vira PAGO pelo webhook ou pelo polling. Aceitar aqui deixaria marcar como pago um Pix que nunca caiu."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Estoque insuficiente (RNF01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 para estoque insuficiente', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e ESTOQUE_INSUFICIENTE', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('ESTOQUE_INSUFICIENTE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 999 }],\n  \"metodo_pagamento\": \"DEBITO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            },
+            "description": "A transação inteira volta atrás: nem venda gravada, nem estoque alterado. O request seguinte confere."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Pagar em dinheiro com troco (RF02.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda fechada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Troco de R$ 30 e venda amarrada ao turno', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total_venda).to.eql(20);",
+                  "  pm.expect(body.troco).to.eql(30);",
+                  "  pm.expect(body.turno_id).to.not.be.null;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('vendaId', pm.response.json().venda_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 0.5 }],\n  \"metodo_pagamento\": \"DINHEIRO\",\n  \"valor_pago\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Estoque baixou após o pagamento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo 9.5: so o pagamento baixou estoque', function () {",
+                  "  var id = pm.collectionVariables.get('vendaProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === id; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(9.5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            },
+            "description": "Fecha o arco da RN01: o cálculo não mexeu no saldo (10), o pagamento mexeu (9.5). E o 409 anterior não deixou rastro."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Auditoria registrou a venda com motivo VENDA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Exatamente 1 movimentacao, com motivo VENDA', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(1);",
+                  "  pm.expect(body.data[0].motivo).to.eql('VENDA');",
+                  "  pm.expect(body.data[0].tipo).to.eql('SAIDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ]
+            },
+            "description": "RN05: a baixa da venda gera linha de auditoria na mesma transação. A tentativa que falhou com 409 NÃO aparece aqui."
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Pagar no cartão (sem troco)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda fechada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Cartao nao tem troco', function () {",
+                  "  pm.expect(pm.response.json().troco).to.be.null;",
+                  "  pm.expect(pm.response.json().total_venda).to.eql(40);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 1 }],\n  \"metodo_pagamento\": \"CREDITO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Cancelar a venda (RF05.1 / RF05.2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda cancelada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status vira CANCELADO e registra quem cancelou', function () {",
+                  "  pm.expect(pm.response.json().status_pagamento).to.eql('CANCELADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda/{{vendaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "{{vendaId}}",
+                "cancelar"
+              ]
+            },
+            "description": "Cancela a venda em dinheiro feita acima. Devolve os itens ao estoque com rastro de auditoria (RN03), na mesma transacao da mudanca de status."
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Cancelar a mesma venda duas vezes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 na segunda vez', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e VENDA_JA_CANCELADA', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('VENDA_JA_CANCELADA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda/{{vendaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda",
+                "{{vendaId}}",
+                "cancelar"
+              ]
+            },
+            "description": "Sem esta trava, cancelar duas vezes devolveria o produto ao estoque em dobro — mercadoria criada do nada."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - RN03: auditoria ficou com as duas pontas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auditoria retornada (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Tem a SAIDA da venda e a ENTRADA do estorno', function () {",
+                  "  var motivos = pm.response.json().data.map(function (m) { return m.motivo; });",
+                  "  pm.expect(motivos).to.include('VENDA');",
+                  "  pm.expect(motivos).to.include('ESTORNO_VENDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/estoque/movimentacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "movimentacoes"
+              ]
+            },
+            "description": "A SAIDA da venda NAO some: o historico guarda a venda e o estorno. E o estoque voltou uma unica vez, nao duas."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Estoque voltou apos o cancelamento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto listado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Saldo 9: o 0.5 kg da venda cancelada voltou', function () {",
+                  "  var id = pm.collectionVariables.get('vendaProdutoId');",
+                  "  var produto = pm.response.json().filter(function (p) { return p.id === id; })[0];",
+                  "  pm.expect(produto.quantidade_atual).to.eql(9);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            },
+            "description": "Saldo: 10 inicial, -0.5 da venda em dinheiro, -1 da venda no cartao, +0.5 devolvido = 9."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Fechar o caixa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Turno fechado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor_fechamento\": 250\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/caixa/turno/atual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caixa",
+                "turno",
+                "atual"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Não vende mais com o caixa fechado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 409 apos fechar o caixa', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Codigo do erro e TURNO_FECHADO', function () {",
+                  "  pm.expect(pm.response.json().code).to.eql('TURNO_FECHADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{vendaProdutoId}}\", \"quantidade\": 1 }],\n  \"metodo_pagamento\": \"DEBITO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Fluxo de PDV de ponta a ponta: busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50 e #51), com asserções `pm.test`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria dono, loja, produto e abre o caixa.\n\n**O que esta pasta prova**:\n- **RN01 (baixa postergada)**: `POST /venda/calcular` não grava nada — o request seguinte confere o saldo intacto em 10, e só depois do pagamento ele cai para 9.5.\n- **Venda exige turno aberto**: o 409 `TURNO_FECHADO` aparece duas vezes, antes de abrir e depois de fechar o caixa.\n- **RNF01**: o 409 de estoque insuficiente não deixa venda gravada nem linha de auditoria.\n- **RN05**: a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA` na mesma transação.\n- **#53 (cancelamento)**: só Owner/Gestor cancela; cancelar devolve ao estoque com rastro `ESTORNO_VENDA` sem apagar a `SAIDA` original, e a segunda tentativa é barrada com 409 para o estoque não voltar em dobro.\n- **Pix fora da rota manual**: `PIX_ABACATEPAY` é recusado com 400, porque não é confirmação manual do caixa."
     }
   ],
   "variable": [
@@ -5915,6 +7120,34 @@
     },
     {
       "key": "caixaTurnoId",
+      "value": ""
+    },
+    {
+      "key": "vendaOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "vendaOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "vendaCnpj",
+      "value": ""
+    },
+    {
+      "key": "vendaCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "vendaEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "vendaProdutoId",
+      "value": ""
+    },
+    {
+      "key": "vendaId",
       "value": ""
     }
   ]
