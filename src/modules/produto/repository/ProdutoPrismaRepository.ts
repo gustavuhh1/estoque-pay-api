@@ -32,6 +32,26 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
     })
   }
 
+  async buscarParaVenda(estabelecimentoId: string, termo: string) {
+    return this.prisma.produto.findMany({
+      where: {
+        estabelecimento_id: estabelecimentoId,
+        deletado_em: null,
+        // Ao contrário da listagem de gestão, o PDV não pode oferecer produto
+        // inativo: está fora de linha, não se vende.
+        ativo: true,
+        OR: [
+          // O leitor de código de barras devolve o código completo, então
+          // casamento exato — e não `contains`, que traria produtos cujo
+          // código apenas contém o lido.
+          { ean_gtin: termo },
+          { nome: { contains: termo, mode: "insensitive" } },
+        ],
+      },
+      orderBy: { nome: "asc" },
+    })
+  }
+
   async findByIdAndEstabelecimento(id: string, estabelecimentoId: string) {
     return this.prisma.produto.findFirst({
       where: { id, estabelecimento_id: estabelecimentoId, deletado_em: null },
