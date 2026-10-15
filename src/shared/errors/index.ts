@@ -108,6 +108,17 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Conflito de cadastro de cliente (CRM): o CPF é único por loja, não na
+ * plataforma inteira — a mesma pessoa pode ser cliente de várias lojas, cada
+ * uma com o seu próprio cadastro (mesmo padrão do ean_gtin em Produto).
+ */
+export class ClienteCpfAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe um cliente com este CPF nesta loja.") {
+    super(message, "CLIENTE_CPF_ALREADY_IN_USE", { field: "cpf" })
+  }
+}
+
+/**
  * Tentativa de cancelar uma venda que já foi cancelada. 409 porque o corpo da
  * requisição está correto — o conflito é com o estado atual da venda.
  *
