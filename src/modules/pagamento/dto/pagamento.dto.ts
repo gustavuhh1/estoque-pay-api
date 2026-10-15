@@ -1,5 +1,6 @@
 import z from "zod"
 import { itemCarrinhoSchema } from "@/modules/venda/dto/venda.dto"
+import { codigoCupomSchema } from "@/modules/crm/dto/cupom.dto"
 
 /**
  * RF02.1/RF02.2 — issue #51.
@@ -20,7 +21,13 @@ export const registrarPagamentoSchema = z
       .min(0)
       .multipleOf(0.01, "O valor aceita no máximo 2 casas decimais.")
       .optional(),
+    /** RF02.1 (#58): indexa a venda ao histórico do cliente. */
     cliente_id: z.uuid().optional(),
+    /**
+     * RF02.3 (#58): resgata o cupom nesta venda. Cupom nominal exige o
+     * `cliente_id` do dono dele.
+     */
+    cupom_codigo: codigoCupomSchema.optional(),
   })
   .superRefine((data, ctx) => {
     // A coerência mora no schema (e não no Service) porque depende só de
@@ -38,6 +45,13 @@ export type RegistrarPagamentoDTO = z.infer<typeof registrarPagamentoSchema>
 
 export const pagamentoResponseSchema = z.object({
   venda_id: z.uuid(),
+  cliente_id: z.string().nullish(),
+  /** Soma dos itens, antes do desconto do cupom. */
+  subtotal: z.number(),
+  /** 0 quando não há cupom. */
+  desconto: z.number(),
+  cupom_codigo: z.string().nullish(),
+  /** O que foi efetivamente cobrado: subtotal - desconto. */
   total_venda: z.number(),
   metodo_pagamento: metodoManualSchema,
   valor_pago: z.number().nullish(),

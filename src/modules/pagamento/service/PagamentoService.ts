@@ -1,13 +1,19 @@
-import { Prisma } from "../../../../generated/prisma/client.js"
+import { Prisma, type Cupom } from "../../../../generated/prisma/client.js"
 import { TurnoFechadoError, ValorPagoInsuficienteError } from "@/shared/errors"
 import type { ICaixaRepository } from "@/modules/caixa/repository/ICaixaRepository"
 import type { IVendaRepository } from "@/modules/venda/repository/IVendaRepository"
 import type { VendaService } from "@/modules/venda/service/VendaService"
 import type { VendaComItens } from "@/modules/venda/dto/venda.dto"
+import type { ClienteService } from "@/modules/crm/service/ClienteService"
+import type { CupomService } from "@/modules/crm/service/CupomService"
 import type { RegistrarPagamentoDTO } from "../dto/pagamento.dto"
 
 export interface PagamentoRegistrado {
   venda: VendaComItens
+  /** Soma dos itens, antes do desconto. */
+  subtotal: number
+  desconto: number
+  cupom_codigo: string | null
   valor_pago: number | null
   troco: number | null
 }
@@ -18,12 +24,16 @@ export interface PagamentoRegistrado {
  * Sem `garantirAcesso`: vender é o trabalho do Caixa. Por isso o fluxo usa o
  * `IVendaRepository`/`IEstoqueRepository` direto e NUNCA o `EstoqueService` —
  * aquele bloqueia CASHIER com 403, e toda venda feita por um caixa falharia.
+ * Pelo mesmo motivo o cupom é validado pelo `CupomService.validarParaResgate`,
+ * que não tem trava de cargo (só a EMISSÃO de cupom tem).
  */
 export class PagamentoService {
   constructor(
     private vendaRepository: IVendaRepository,
     private vendaService: VendaService,
-    private caixaRepository: ICaixaRepository
+    private caixaRepository: ICaixaRepository,
+    private clienteService: ClienteService,
+    private cupomService: CupomService
   ) {}
 
   async registrarPagamentoManual(
@@ -40,6 +50,13 @@ export class PagamentoService {
       throw new TurnoFechadoError()
     }
 
+    // RF02.1 (#58): a venda é indexada ao cliente pelo `cliente_id`. Validar
+    // aqui impede vincular cliente de OUTRA loja (a FK aceitaria) e transforma
+    // um id inexistente em 404, em vez do 500 de violação de FK.
+    if (data.cliente_id) {
+      await this.clienteService.findById(data.cliente_id, estabelecimentoId)
+    }
+
     // Reusa a MESMA precificação do POST /venda/calcular: é o que garante que
     // o total cobrado é o que foi mostrado ao cliente, com preço lido do banco
     // nos dois casos. Também valida produto inexistente/inativo.
@@ -48,10 +65,19 @@ export class PagamentoService {
       data.itens
     )
 
-    const troco = this.calcularTroco(data, carrinho.total)
+    const cupom = data.cupom_codigo
+      ? await this.cupomService.validarParaResgate(
+          estabelecimentoId,
+          data.cupom_codigo,
+          data.cliente_id
+        )
+      : null
 
-    // A transação inteira (Venda + itens + baixa de estoque + auditoria) vive
-    // no repositório. Se a baixa de qualquer item estourar o saldo, nada disso
+    const { total, desconto } = this.aplicarDesconto(carrinho.total, cupom)
+    const troco = this.calcularTroco(data, total)
+
+    // A transação inteira (Venda + itens + resgate do cupom + baixa de estoque
+    // + auditoria) vive no repositório. Se qualquer parte falhar, nada disso
     // fica gravado — RNF01.
     const venda = await this.vendaRepository.registrarVendaPaga({
       estabelecimento_id: estabelecimentoId,
@@ -59,7 +85,8 @@ export class PagamentoService {
       turno_id: turno.id,
       cliente_id: data.cliente_id,
       metodo_pagamento: data.metodo_pagamento,
-      total_venda: carrinho.total,
+      total_venda: total,
+      cupom_id: cupom?.id,
       itens: carrinho.itens.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -70,9 +97,31 @@ export class PagamentoService {
 
     return {
       venda,
+      subtotal: carrinho.total,
+      desconto,
+      cupom_codigo: cupom?.codigo ?? null,
       valor_pago: data.valor_pago ?? null,
       troco,
     }
+  }
+
+  /**
+   * O desconto nunca passa do total: cupom de R$ 20 numa compra de R$ 15 zera
+   * a venda, não gera crédito nem total negativo. Decimal pelo mesmo motivo do
+   * troco.
+   */
+  private aplicarDesconto(
+    subtotal: number,
+    cupom: Cupom | null
+  ): { total: number; desconto: number } {
+    if (!cupom) {
+      return { total: subtotal, desconto: 0 }
+    }
+
+    const bruto = new Prisma.Decimal(subtotal.toString())
+    const desconto = Prisma.Decimal.min(cupom.valor_desconto, bruto)
+
+    return { total: Number(bruto.sub(desconto)), desconto: Number(desconto) }
   }
 
   /**
