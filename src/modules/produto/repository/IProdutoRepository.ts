@@ -60,4 +60,14 @@ export interface IProdutoRepository {
    * gestão, mas ItemVenda/MovimentacaoEstoque continuam intactos).
    */
   softDelete(id: string): Promise<void>
+  /**
+   * RN01.1 (#59): produtos ATIVOS (e não soft-deletados) sem NCM ou sem CFOP —
+   * os que impedem ligar o Switch Fiscal. Inativo não conta: não vai para o
+   * PDV, logo não gera nota. Devolve o total e uma amostra de até `limite`
+   * itens para o front apontar quais corrigir.
+   */
+  findAtivosSemConformidadeFiscal(
+    estabelecimentoId: string,
+    limite: number
+  ): Promise<{ total: number; produtos: Array<{ id: string; nome: string }> }>
 }

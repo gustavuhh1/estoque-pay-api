@@ -11,6 +11,10 @@ import { VendaService } from "@/modules/venda/service/VendaService"
 import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePrismaRepository"
 import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
 import { CaixaPrismaRepository } from "@/modules/caixa/repository/CaixaPrismaRepository"
+import { ClientePrismaRepository } from "@/modules/crm/repository/ClientePrismaRepository"
+import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepository"
+import { ClienteService } from "@/modules/crm/service/ClienteService"
+import { CupomService } from "@/modules/crm/service/CupomService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -43,11 +47,14 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
     // repositório de Estoque para a baixa rodar dentro da transação da venda.
     const estoqueRepository = new EstoquePrismaRepository(prisma)
     const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
+    const clienteRepository = new ClientePrismaRepository(prisma)
     const pagamentoController = new PagamentoController(
       new PagamentoService(
         vendaRepository,
         new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
-        new CaixaPrismaRepository(prisma)
+        new CaixaPrismaRepository(prisma),
+        new ClienteService(clienteRepository),
+        new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
       )
     )
 
@@ -61,7 +68,7 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
           tags: ["Pagamento"],
           summary: "Registra o pagamento manual e fecha a venda",
           description:
-            "RF02.1/RF02.2 + **RNF01**. Requer o header `x-estabelecimento-id`. Aceita `DINHEIRO`, `DEBITO` e `CREDITO` — **Pix não entra aqui**, porque não é confirmação manual do caixa (nasce PENDENTE e só vira PAGO pelo webhook ou polling). Em `DINHEIRO`, `valor_pago` é obrigatório e o troco volta na resposta. A venda exige **turno de caixa aberto** (409 se fechado). Os preços são relidos do banco, nunca aceitos do cliente. **Tudo numa transação**: Venda, ItemVenda, baixa de estoque e auditoria — se a baixa de um item estourar o saldo, a venda inteira volta atrás. Qualquer cargo pode vender, inclusive Caixa.",
+            "RF02.1/RF02.2 + **RNF01**. Requer o header `x-estabelecimento-id`. Aceita `DINHEIRO`, `DEBITO` e `CREDITO` — **Pix não entra aqui**, porque não é confirmação manual do caixa (nasce PENDENTE e só vira PAGO pelo webhook ou polling). Em `DINHEIRO`, `valor_pago` é obrigatório e o troco volta na resposta. A venda exige **turno de caixa aberto** (409 se fechado). Os preços são relidos do banco, nunca aceitos do cliente. **Tudo numa transação**: Venda, ItemVenda, baixa de estoque e auditoria — se a baixa de um item estourar o saldo, a venda inteira volta atrás. Qualquer cargo pode vender, inclusive Caixa. **CRM (#58)**: `cliente_id` indexa a venda ao histórico do cliente (precisa ser cliente desta loja). `cupom_codigo` resgata um cupom de fidelidade na mesma transação: o desconto sai do total (nunca abaixo de zero) e o cupom fica baixado com o id da venda. Cupom nominal só vale com o `cliente_id` do dono.",
           security: [{ cookieAuth: [] }],
           body: registrarPagamentoSchema,
           response: {
@@ -72,10 +79,10 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
             401: errorResponseSchema.describe("Sessão ausente ou inválida"),
             403: errorResponseSchema.describe("Sem vínculo com esta loja"),
             404: errorResponseSchema.describe(
-              "Produto não encontrado (code: PRODUTO_NAO_ENCONTRADO) ou inativo (code: PRODUTO_INATIVO)"
+              "Produto não encontrado (code: PRODUTO_NAO_ENCONTRADO), inativo (code: PRODUTO_INATIVO), cliente (code: CLIENTE_NAO_ENCONTRADO) ou cupom (code: CUPOM_NAO_ENCONTRADO) inexistente nesta loja"
             ),
             409: errorResponseSchema.describe(
-              "Caixa fechado (code: TURNO_FECHADO) ou estoque insuficiente (code: ESTOQUE_INSUFICIENTE)"
+              "Caixa fechado (code: TURNO_FECHADO), estoque insuficiente (code: ESTOQUE_INSUFICIENTE) ou cupom indisponível (code: CUPOM_JA_RESGATADO | CUPOM_EXPIRADO | CUPOM_DE_OUTRO_CLIENTE)"
             ),
           },
         },

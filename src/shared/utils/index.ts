@@ -1,6 +1,19 @@
+import type { StatusAssinatura } from "../../../generated/prisma/client.js"
+
 /**
  * Funções utilitárias globais compartilhadas entre os módulos.
  */
+
+export type PlanoEfetivo = "FREE" | "PREMIUM"
+
+/**
+ * RN00 (Fase 5): o plano NÃO é coluna, é derivado de `Assinatura.status` —
+ * fonte única da verdade. Premium só em TRIALING/ACTIVE; sem assinatura,
+ * PAST_DUE ou CANCELED valem os limites do Free.
+ */
+export function planoEfetivo(status: StatusAssinatura | null | undefined): PlanoEfetivo {
+  return status === "TRIALING" || status === "ACTIVE" ? "PREMIUM" : "FREE"
+}
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -45,5 +58,35 @@ export function isValidCnpj(value: string): boolean {
   return (
     digits[12] === checkDigit(digits, CNPJ_DV1_WEIGHTS) &&
     digits[13] === checkDigit(digits, CNPJ_DV2_WEIGHTS)
+  )
+}
+
+/** Remove a máscara do CPF: `529.982.247-25` -> `52998224725`. */
+export function sanitizeCpf(value: string): string {
+  return value.replace(/\D/g, "")
+}
+
+/** Pesos do módulo 11 da Receita para o 1º e o 2º dígito verificador do CPF. */
+const CPF_DV1_WEIGHTS = [10, 9, 8, 7, 6, 5, 4, 3, 2]
+const CPF_DV2_WEIGHTS = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]
+
+/**
+ * Valida um CPF (com ou sem máscara) pelos dois dígitos verificadores.
+ *
+ * Mesma regra de corte do CNPJ: sequências repetidas (`11111111111`) passam na
+ * conta do módulo 11, mas são o placeholder típico de formulário e não existem
+ * na Receita.
+ */
+export function isValidCpf(value: string): boolean {
+  const cpf = sanitizeCpf(value)
+
+  if (cpf.length !== 11) return false
+  if (/^(\d)\1{10}$/.test(cpf)) return false
+
+  const digits = cpf.split("").map(Number)
+
+  return (
+    digits[9] === checkDigit(digits, CPF_DV1_WEIGHTS) &&
+    digits[10] === checkDigit(digits, CPF_DV2_WEIGHTS)
   )
 }

@@ -11,6 +11,10 @@ import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePri
 import { CaixaPrismaRepository } from "@/modules/caixa/repository/CaixaPrismaRepository"
 import { VendaPrismaRepository } from "@/modules/venda/repository/VendaPrismaRepository"
 import { VendaService } from "@/modules/venda/service/VendaService"
+import { ClientePrismaRepository } from "@/modules/crm/repository/ClientePrismaRepository"
+import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepository"
+import { ClienteService } from "@/modules/crm/service/ClienteService"
+import { CupomService } from "@/modules/crm/service/CupomService"
 import { PagamentoService } from "../service/PagamentoService"
 
 const CNPJ_VALIDO = "11222333000181"
@@ -49,10 +53,13 @@ describe("PagamentoService.registrarPagamentoManual (#51 — RF02.1/RF02.2/RNF01
     const estoqueRepository = new EstoquePrismaRepository(prisma)
     const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
     caixaRepository = new CaixaPrismaRepository(prisma)
+    const clienteRepository = new ClientePrismaRepository(prisma)
     sut = new PagamentoService(
       vendaRepository,
       new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
-      caixaRepository
+      caixaRepository,
+      new ClienteService(clienteRepository),
+      new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
     )
   })
 

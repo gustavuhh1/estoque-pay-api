@@ -108,6 +108,86 @@ export class CategoriaNomeAlreadyInUseError extends ConflictError {
 }
 
 /**
+ * Conflito de cadastro de cliente (CRM): o CPF é único por loja, não na
+ * plataforma inteira — a mesma pessoa pode ser cliente de várias lojas, cada
+ * uma com o seu próprio cadastro (mesmo padrão do ean_gtin em Produto).
+ */
+export class ClienteCpfAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe um cliente com este CPF nesta loja.") {
+    super(message, "CLIENTE_CPF_ALREADY_IN_USE", { field: "cpf" })
+  }
+}
+
+/**
+ * Conflito de emissão de cupom: o código é único por loja (o caixa digita o
+ * código no balcão, então dois cupons iguais na mesma loja seriam ambíguos).
+ */
+export class CupomCodigoAlreadyInUseError extends ConflictError {
+  constructor(message = "Já existe um cupom com este código nesta loja.") {
+    super(message, "CUPOM_CODIGO_ALREADY_IN_USE", { field: "codigo" })
+  }
+}
+
+/**
+ * Tentativa de resgatar um cupom que já foi consumido em outra venda. 409
+ * porque o conflito é com o estado do cupom, não com o corpo da requisição.
+ *
+ * O Service checa antes, mas a trava de verdade é o `updateMany` condicional
+ * (`resgatado_em: null`) dentro da transação da venda: duas vendas simultâneas
+ * com o mesmo cupom passariam as duas pela checagem prévia.
+ */
+export class CupomJaResgatadoError extends ConflictError {
+  constructor(message = "Este cupom já foi resgatado.") {
+    super(message, "CUPOM_JA_RESGATADO", { field: "cupom_codigo" })
+  }
+}
+
+export class CupomExpiradoError extends ConflictError {
+  constructor(expiraEm: Date) {
+    super(
+      `Este cupom expirou em ${expiraEm.toISOString()}.`,
+      "CUPOM_EXPIRADO",
+      { field: "cupom_codigo", expira_em: expiraEm.toISOString() }
+    )
+  }
+}
+
+/**
+ * Cupom nominal (com `cliente_id`) usado numa venda sem cliente ou de outro
+ * cliente. É o que faz o cupom de fidelidade ser "atrelado ao cliente" (RF02.3)
+ * e não um código que qualquer um no balcão pode usar.
+ */
+export class CupomDeOutroClienteError extends ConflictError {
+  constructor(
+    message = "Este cupom é nominal: só pode ser usado numa venda vinculada ao cliente dono dele."
+  ) {
+    super(message, "CUPOM_DE_OUTRO_CLIENTE", { field: "cupom_codigo" })
+  }
+}
+
+/**
+ * RN01/RN01.1 (#59): a loja tentou ligar o Switch Fiscal sem cumprir o
+ * pre-check de conformidade. `details.pendencias` lista TUDO o que falta (e
+ * não só o primeiro problema), para o front montar o checklist de uma vez em
+ * vez de o dono descobrir uma pendência por tentativa.
+ *
+ * É 409 e não 403 pelo mesmo motivo do TURNO_FECHADO: não é falta de
+ * permissão de quem pede, é o estado atual da loja — resolvidas as pendências,
+ * a mesma requisição passa.
+ */
+export class NfcePreCheckReprovadoError extends ConflictError {
+  constructor(pendencias: Array<{ codigo: string; mensagem: string }>) {
+    super(
+      `A loja não cumpre os requisitos para emitir NFC-e: ${pendencias
+        .map((pendencia) => pendencia.mensagem)
+        .join(" ")}`,
+      "NFCE_PRE_CHECK_REPROVADO",
+      { pendencias }
+    )
+  }
+}
+
+/**
  * Tentativa de cancelar uma venda que já foi cancelada. 409 porque o corpo da
  * requisição está correto — o conflito é com o estado atual da venda.
  *

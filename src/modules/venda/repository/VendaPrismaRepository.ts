@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "../../../../generated/prisma/client.js"
+import { CupomJaResgatadoError } from "@/shared/errors"
 import type { IEstoqueRepository } from "@/modules/estoque/repository/IEstoqueRepository"
 import type {
   CancelarVendaParams,
@@ -47,6 +48,22 @@ export class VendaPrismaRepository implements IVendaRepository {
         },
         include: RELACOES_DA_VENDA,
       })
+
+      if (params.cupom_id) {
+        // Update CONDICIONAL: só baixa se ainda não foi resgatado. Duas vendas
+        // simultâneas com o mesmo cupom passam as duas pela validação prévia
+        // do CupomService; aqui o row lock do Postgres serializa as duas e a
+        // segunda encontra `resgatado_em` preenchido, atualiza 0 linhas e
+        // derruba a própria transação — o desconto não é dado duas vezes.
+        const resgate = await tx.cupom.updateMany({
+          where: { id: params.cupom_id, resgatado_em: null },
+          data: { resgatado_em: new Date(), venda_id: venda.id },
+        })
+
+        if (resgate.count === 0) {
+          throw new CupomJaResgatadoError()
+        }
+      }
 
       // Sequencial de propósito, não Promise.all: cada baixa pega row lock no
       // produto, e disparar em paralelo dentro da mesma transação interativa
@@ -111,6 +128,14 @@ export class VendaPrismaRepository implements IVendaRepository {
           tx
         )
       }
+
+      // #58: o cupom consumido nesta venda volta a ficar disponível. Sem
+      // isto, cancelar e refazer a venda (ex: item errado) faria o cliente
+      // perder o desconto que não chegou a usufruir.
+      await tx.cupom.updateMany({
+        where: { venda_id: params.id },
+        data: { resgatado_em: null, venda_id: null },
+      })
 
       return venda
     })

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import type {
   Estabelecimento,
   MembroEstabelecimento,
+  StatusAssinatura,
 } from "../../../../generated/prisma/client.js"
 import type {
   CreateWithOwnerParams,
@@ -21,6 +22,8 @@ export class InMemoryEstabelecimentoRepository
 {
   public estabelecimentos: Estabelecimento[] = []
   public membros: MembroEstabelecimento[] = []
+  /** estabelecimentoId -> status da assinatura (ausente = nunca assinou). */
+  public assinaturas = new Map<string, StatusAssinatura>()
 
   async findByCnpj(cnpj: string): Promise<Estabelecimento | null> {
     return this.estabelecimentos.find((item) => item.cnpj === cnpj) ?? null
@@ -89,6 +92,22 @@ export class InMemoryEstabelecimentoRepository
     }
 
     Object.assign(estabelecimento, data)
+
+    return estabelecimento
+  }
+
+  async findStatusAssinatura(id: string): Promise<StatusAssinatura | null> {
+    return this.assinaturas.get(id) ?? null
+  }
+
+  async setEmiteNfce(id: string, emiteNfce: boolean): Promise<Estabelecimento> {
+    const estabelecimento = this.estabelecimentos.find((item) => item.id === id)
+
+    if (!estabelecimento) {
+      throw new Error(`Estabelecimento ${id} não encontrado no fake de teste.`)
+    }
+
+    estabelecimento.emite_nfce = emiteNfce
 
     return estabelecimento
   }

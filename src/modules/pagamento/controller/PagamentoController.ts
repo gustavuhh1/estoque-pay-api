@@ -17,7 +17,7 @@ export class PagamentoController {
       throw new UnauthorizedError("Autenticação necessária.")
     }
 
-    const { venda, valor_pago, troco } =
+    const { venda, subtotal, desconto, cupom_codigo, valor_pago, troco } =
       await this.pagamentoService.registrarPagamentoManual(
         request.membro.estabelecimentoId,
         request.user.id,
@@ -26,6 +26,10 @@ export class PagamentoController {
 
     return reply.status(201).send({
       venda_id: venda.id,
+      cliente_id: venda.cliente_id,
+      subtotal,
+      desconto,
+      cupom_codigo,
       total_venda: Number(venda.total_venda),
       metodo_pagamento: venda.metodo_pagamento,
       valor_pago,

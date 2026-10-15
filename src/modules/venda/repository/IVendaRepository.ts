@@ -15,8 +15,15 @@ export interface RegistrarVendaPagaParams {
   turno_id: string
   cliente_id?: string | undefined
   metodo_pagamento: MetodoPagamento
+  /** Já com o desconto do cupom aplicado. */
   total_venda: number
   itens: ItemParaGravar[]
+  /**
+   * RF02.3 (#58): cupom já validado pelo CupomService. O resgate é gravado na
+   * mesma transação da venda — cupom consumido sem venda, ou venda com
+   * desconto sem o cupom baixado, nunca ficam no banco.
+   */
+  cupom_id?: string | undefined
 }
 
 export interface CancelarVendaParams {
@@ -54,6 +61,9 @@ export interface IVendaRepository {
    * transação, gerando `MovimentacaoEstoque` de ENTRADA com motivo
    * ESTORNO_VENDA. O rastro do cancelamento nunca fica sem a devolução, nem a
    * devolução sem o rastro.
+   *
+   * Se a venda consumiu um cupom (#58), ele volta a ficar disponível na mesma
+   * transação: o cliente não chegou a usufruir do desconto.
    */
   cancelar(params: CancelarVendaParams): Promise<VendaComItens>
 }
