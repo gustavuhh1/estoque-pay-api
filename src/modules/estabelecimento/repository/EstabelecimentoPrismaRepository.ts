@@ -86,4 +86,20 @@ export class EstabelecimentoPrismaRepository implements IEstabelecimentoReposito
       }
     })
   }
+
+  async findStatusAssinatura(id: string) {
+    const assinatura = await this.prisma.assinatura.findUnique({
+      where: { estabelecimento_id: id },
+      select: { status: true }
+    })
+
+    return assinatura?.status ?? null
+  }
+
+  async setEmiteNfce(id: string, emiteNfce: boolean) {
+    return this.prisma.estabelecimento.update({
+      where: { id },
+      data: { emite_nfce: emiteNfce }
+    })
+  }
 }

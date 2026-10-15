@@ -115,4 +115,21 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
     produto.deletado_em = new Date()
     produto.ean_gtin = null
   }
+
+  async findAtivosSemConformidadeFiscal(estabelecimentoId: string, limite: number) {
+    const pendentes = this.produtos
+      .filter(
+        (produto) =>
+          produto.estabelecimento_id === estabelecimentoId &&
+          produto.ativo &&
+          produto.deletado_em === null &&
+          (!produto.ncm || !produto.cfop)
+      )
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    return {
+      total: pendentes.length,
+      produtos: pendentes.slice(0, limite).map(({ id, nome }) => ({ id, nome })),
+    }
+  }
 }

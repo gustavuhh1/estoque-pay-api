@@ -1,6 +1,19 @@
+import type { StatusAssinatura } from "../../../generated/prisma/client.js"
+
 /**
  * Funções utilitárias globais compartilhadas entre os módulos.
  */
+
+export type PlanoEfetivo = "FREE" | "PREMIUM"
+
+/**
+ * RN00 (Fase 5): o plano NÃO é coluna, é derivado de `Assinatura.status` —
+ * fonte única da verdade. Premium só em TRIALING/ACTIVE; sem assinatura,
+ * PAST_DUE ou CANCELED valem os limites do Free.
+ */
+export function planoEfetivo(status: StatusAssinatura | null | undefined): PlanoEfetivo {
+  return status === "TRIALING" || status === "ACTIVE" ? "PREMIUM" : "FREE"
+}
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",

@@ -1,8 +1,11 @@
 import type { FastifyInstance } from "fastify"
 import type { ZodTypeProvider } from "@fastify/type-provider-zod"
 import { EstabelecimentoController } from "./controller/EstabelecimentoController"
+import { SwitchFiscalController } from "./controller/SwitchFiscalController"
 import { EstabelecimentoService } from "./service/EstabelecimentoService"
+import { SwitchFiscalService } from "./service/SwitchFiscalService"
 import { EstabelecimentoPrismaRepository } from "./repository/EstabelecimentoPrismaRepository"
+import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -13,6 +16,8 @@ import {
   listEstabelecimentosResponseSchema,
   estabelecimentoAtivoResponseSchema,
   estabelecimentoResponseSchema,
+  preCheckFiscalResponseSchema,
+  switchFiscalSchema,
   updateEstabelecimentoSchema,
 } from "./dto/estabelecimento.dto"
 
@@ -38,10 +43,16 @@ export async function estabelecimentoRoutes(app: FastifyInstance) {
     estabelecimentoRepository
   )
 
+  const switchFiscalService = new SwitchFiscalService(
+    estabelecimentoRepository,
+    new ProdutoPrismaRepository(prisma)
+  )
+
   // 3. Instanciar Controller (Presentation)
   const estabelecimentoController = new EstabelecimentoController(
     estabelecimentoService
   )
+  const switchFiscalController = new SwitchFiscalController(switchFiscalService)
 
   // 4. Registrar Rotas
   const route = app.withTypeProvider<ZodTypeProvider>()
@@ -148,5 +159,55 @@ export async function estabelecimentoRoutes(app: FastifyInstance) {
       },
     },
     async (req, res) => estabelecimentoController.updateAtivo(req, res)
+  )
+
+  route.get(
+    "/ativo/nfce/pre-check",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Estabelecimento"],
+        summary: "Pre-check de conformidade para emitir NFC-e",
+        description: `RN01/RN01.1 (#59). ${TENANT_HEADER_DOC} Só consulta, não liga nada: devolve \`apto\` e **todas** as pendências de uma vez — plano Premium (derivado da assinatura), Certificado A1 com senha, Inscrição Estadual e produtos ativos sem NCM/CFOP (com uma amostra de até 50 deles). Owner e Gestor consultam; Caixa não.`,
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: preCheckFiscalResponseSchema,
+          400: errorResponseSchema.describe(
+            "Header x-estabelecimento-id ausente (code: TENANT_HEADER_REQUIRED)"
+          ),
+          401: errorResponseSchema.describe("Sessão ausente ou inválida (code: UNAUTHORIZED)"),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo Caixa (code: ROLE_CANNOT_MANAGE_NFCE)"
+          ),
+        },
+      },
+    },
+    async (req, res) => switchFiscalController.preCheck(req, res)
+  )
+
+  route.patch(
+    "/ativo/nfce",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Estabelecimento"],
+        summary: "Liga ou desliga o Switch Fiscal (emissão de NFC-e)",
+        description: `RN01/RN01.1 (#59). ${TENANT_HEADER_DOC} **Ligar** (\`emite_nfce: true\`) roda o mesmo pre-check do \`GET /ativo/nfce/pre-check\` e só passa com tudo em ordem; senão responde 409 com a lista completa em \`details.pendencias\`. **Desligar** é sempre permitido. Com o switch ligado, produtos sem NCM/CFOP passam a nascer inativos (RN09.1) e não podem ser reativados (RN09.2). Só o Owner altera o switch.`,
+        security: [{ cookieAuth: [] }],
+        body: switchFiscalSchema,
+        response: {
+          200: estabelecimentoResponseSchema,
+          400: errorResponseSchema.describe("Dados inválidos (code: VALIDATION_ERROR)"),
+          401: errorResponseSchema.describe("Sessão ausente ou inválida (code: UNAUTHORIZED)"),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo que não é Owner (code: ROLE_CANNOT_MANAGE_NFCE)"
+          ),
+          409: errorResponseSchema.describe(
+            "Pre-check reprovado (code: NFCE_PRE_CHECK_REPROVADO), com `details.pendencias`"
+          ),
+        },
+      },
+    },
+    async (req, res) => switchFiscalController.alterar(req, res)
   )
 }

@@ -123,4 +123,27 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
       data: { deletado_em: new Date(), ean_gtin: null },
     })
   }
+
+  async findAtivosSemConformidadeFiscal(estabelecimentoId: string, limite: number) {
+    const where = {
+      estabelecimento_id: estabelecimentoId,
+      ativo: true,
+      deletado_em: null,
+      // String vazia conta como ausente: o DTO não deixa gravar "", mas o
+      // pre-check fiscal não pode depender só disso.
+      OR: [{ ncm: null }, { ncm: "" }, { cfop: null }, { cfop: "" }],
+    }
+
+    const [produtos, total] = await Promise.all([
+      this.prisma.produto.findMany({
+        where,
+        select: { id: true, nome: true },
+        orderBy: { nome: "asc" },
+        take: limite,
+      }),
+      this.prisma.produto.count({ where }),
+    ])
+
+    return { total, produtos }
+  }
 }

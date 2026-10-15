@@ -166,6 +166,28 @@ export class CupomDeOutroClienteError extends ConflictError {
 }
 
 /**
+ * RN01/RN01.1 (#59): a loja tentou ligar o Switch Fiscal sem cumprir o
+ * pre-check de conformidade. `details.pendencias` lista TUDO o que falta (e
+ * não só o primeiro problema), para o front montar o checklist de uma vez em
+ * vez de o dono descobrir uma pendência por tentativa.
+ *
+ * É 409 e não 403 pelo mesmo motivo do TURNO_FECHADO: não é falta de
+ * permissão de quem pede, é o estado atual da loja — resolvidas as pendências,
+ * a mesma requisição passa.
+ */
+export class NfcePreCheckReprovadoError extends ConflictError {
+  constructor(pendencias: Array<{ codigo: string; mensagem: string }>) {
+    super(
+      `A loja não cumpre os requisitos para emitir NFC-e: ${pendencias
+        .map((pendencia) => pendencia.mensagem)
+        .join(" ")}`,
+      "NFCE_PRE_CHECK_REPROVADO",
+      { pendencias }
+    )
+  }
+}
+
+/**
  * Tentativa de cancelar uma venda que já foi cancelada. 409 porque o corpo da
  * requisição está correto — o conflito é com o estado atual da venda.
  *
