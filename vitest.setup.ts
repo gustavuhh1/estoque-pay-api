@@ -23,8 +23,12 @@ beforeEach(async () => {
   // Limpar os dados antes de cada teste no banco de testes.
   // Ordem filho -> pai: hoje o cascade daria conta sozinho, mas explicitar
   // protege o setup caso algum onDelete mude no schema.
+  // Cupom aponta para Venda e Cliente; Cliente é apontado por Venda — por isso
+  // cupom sai antes da venda e cliente só depois dela.
+  await prisma.cupom.deleteMany()
   await prisma.itemVenda.deleteMany()
   await prisma.venda.deleteMany()
+  await prisma.cliente.deleteMany()
   await prisma.turnoCaixa.deleteMany()
   await prisma.movimentacaoEstoque.deleteMany()
   await prisma.produto.deleteMany()
