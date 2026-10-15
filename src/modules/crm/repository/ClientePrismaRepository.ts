@@ -1,10 +1,16 @@
-import type { Prisma, PrismaClient } from "../../../../generated/prisma/client.js"
+import { Prisma, type PrismaClient } from "../../../../generated/prisma/client.js"
+import type { ProdutoFavorito } from "../dto/cliente.dto"
 import type {
   CreateClienteParams,
   IClienteRepository,
   ListClientesParams,
   UpdateClienteParams,
 } from "./IClienteRepository"
+
+/** Mesmo include do VendaPrismaRepository: o contrato `VendaComItens`. */
+const RELACOES_DA_VENDA = {
+  itens: { include: { produto: { select: { nome: true } } } },
+} as const
 
 export class ClientePrismaRepository implements IClienteRepository {
   constructor(private prisma: PrismaClient) {}
@@ -87,5 +93,96 @@ export class ClientePrismaRepository implements IClienteRepository {
     })
 
     return cliente !== null
+  }
+
+  async findCompras(
+    clienteId: string,
+    estabelecimentoId: string,
+    params: { page: number; limit: number }
+  ) {
+    // `estabelecimento_id` redundante com o cliente de propósito: a venda é
+    // filtrada pela loja ativa mesmo que um dia um cliente_id de outra loja
+    // escape para cá.
+    const where = { cliente_id: clienteId, estabelecimento_id: estabelecimentoId }
+
+    const [data, total] = await Promise.all([
+      this.prisma.venda.findMany({
+        where,
+        include: RELACOES_DA_VENDA,
+        orderBy: { criada_em: "desc" },
+        skip: (params.page - 1) * params.limit,
+        take: params.limit,
+      }),
+      this.prisma.venda.count({ where }),
+    ])
+
+    return { data, total }
+  }
+
+  async resumoDeCompras(clienteId: string, estabelecimentoId: string) {
+    const resumo = await this.prisma.venda.aggregate({
+      where: {
+        cliente_id: clienteId,
+        estabelecimento_id: estabelecimentoId,
+        status_pagamento: "PAGO",
+      },
+      _count: { _all: true },
+      _sum: { total_venda: true },
+      _min: { criada_em: true },
+      _max: { criada_em: true },
+    })
+
+    return {
+      total_compras: resumo._count._all,
+      valor_total_gasto: resumo._sum.total_venda ?? new Prisma.Decimal(0),
+      primeira_compra_em: resumo._min.criada_em,
+      ultima_compra_em: resumo._max.criada_em,
+    }
+  }
+
+  async produtosFavoritos(
+    clienteId: string,
+    estabelecimentoId: string,
+    top: number
+  ): Promise<ProdutoFavorito[]> {
+    const agrupados = await this.prisma.itemVenda.groupBy({
+      by: ["produto_id"],
+      where: {
+        venda: {
+          cliente_id: clienteId,
+          estabelecimento_id: estabelecimentoId,
+          status_pagamento: "PAGO",
+        },
+      },
+      _count: { produto_id: true },
+      _sum: { quantidade: true },
+      // Frequência primeiro: somar quantidade de produto em kg com produto em
+      // unidade não diz qual é o favorito. A soma só desempata. O produto_id
+      // fecha o desempate para a ordem ser estável entre chamadas.
+      orderBy: [
+        { _count: { produto_id: "desc" } },
+        { _sum: { quantidade: "desc" } },
+        { produto_id: "asc" },
+      ],
+      take: top,
+    })
+
+    if (agrupados.length === 0) return []
+
+    // O groupBy do Prisma não faz include: o nome vem numa segunda query só
+    // com os ids do top N. Inclui soft-deletados de propósito — o produto saiu
+    // do catálogo, mas continua sendo o que o cliente comprou.
+    const produtos = await this.prisma.produto.findMany({
+      where: { id: { in: agrupados.map((item) => item.produto_id) } },
+      select: { id: true, nome: true },
+    })
+    const nomePorId = new Map(produtos.map((produto) => [produto.id, produto.nome]))
+
+    return agrupados.map((item) => ({
+      produto_id: item.produto_id,
+      produto_nome: nomePorId.get(item.produto_id) ?? "",
+      vezes_comprado: item._count.produto_id,
+      quantidade_total: Number(item._sum.quantidade ?? 0),
+    }))
   }
 }

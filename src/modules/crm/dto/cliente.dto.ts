@@ -1,5 +1,6 @@
 import z from "zod"
 import { isValidCpf, sanitizeCpf } from "@/shared/utils"
+import { vendaResponseSchema } from "@/modules/venda/dto/venda.dto"
 
 /**
  * Aceita com ou sem máscara, mas normaliza antes de validar/gravar: sem isso
@@ -96,3 +97,50 @@ export const listClientesResponseSchema = z.object({
   page: z.number().int(),
   limit: z.number().int(),
 })
+
+/** RF02.1: histórico de compras do cliente, da mais recente para a mais antiga. */
+export const listComprasQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+export type ListComprasQuery = z.infer<typeof listComprasQuerySchema>
+
+/**
+ * Reusa o `vendaResponseSchema` do módulo de vendas: uma compra do cliente É
+ * uma venda, com o mesmo contrato do cancelamento. Vendas canceladas aparecem
+ * no histórico (com `status_pagamento: CANCELADO`), mas não contam nas
+ * estatísticas.
+ */
+export const listComprasResponseSchema = z.object({
+  data: z.array(vendaResponseSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  limit: z.number().int(),
+})
+
+/** RF02.2: `top` é quantos produtos favoritos devolver. */
+export const estatisticasQuerySchema = z.object({
+  top: z.coerce.number().int().min(1).max(20).default(5),
+})
+export type EstatisticasQuery = z.infer<typeof estatisticasQuerySchema>
+
+export const produtoFavoritoSchema = z.object({
+  produto_id: z.uuid(),
+  produto_nome: z.string(),
+  /** Em quantas linhas de venda o produto apareceu. É o critério de ordenação. */
+  vezes_comprado: z.number().int(),
+  /** Soma das quantidades (unidades ou kg, conforme o tipo de medida). */
+  quantidade_total: z.number(),
+})
+export type ProdutoFavorito = z.infer<typeof produtoFavoritoSchema>
+
+export const estatisticasResponseSchema = z.object({
+  cliente_id: z.uuid(),
+  total_compras: z.number().int(),
+  valor_total_gasto: z.number(),
+  ticket_medio: z.number(),
+  primeira_compra_em: z.date().nullable(),
+  ultima_compra_em: z.date().nullable(),
+  produtos_favoritos: z.array(produtoFavoritoSchema),
+})
+export type EstatisticasCliente = z.infer<typeof estatisticasResponseSchema>

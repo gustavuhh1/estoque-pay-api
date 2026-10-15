@@ -1,9 +1,12 @@
 import type { FastifyReply, FastifyRequest } from "fastify"
 import { UnauthorizedError } from "@/shared/errors"
+import { toVendaResponse } from "@/modules/venda/dto/venda.dto"
 import type {
   ClienteParams,
   CreateClienteDTO,
+  EstatisticasQuery,
   ListClientesQuery,
+  ListComprasQuery,
   UpdateClienteDTO,
 } from "../dto/cliente.dto"
 import { ClienteService } from "../service/ClienteService"
@@ -80,5 +83,43 @@ export class ClienteController {
     )
 
     return reply.status(200).send(cliente)
+  }
+
+  /** RF02.1 */
+  async listarCompras(
+    request: FastifyRequest<{ Params: ClienteParams; Querystring: ListComprasQuery }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const resultado = await this.clienteService.listarCompras(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.query
+    )
+
+    return reply
+      .status(200)
+      .send({ ...resultado, data: resultado.data.map(toVendaResponse) })
+  }
+
+  /** RF02.2 */
+  async estatisticas(
+    request: FastifyRequest<{ Params: ClienteParams; Querystring: EstatisticasQuery }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const estatisticas = await this.clienteService.estatisticas(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.query.top
+    )
+
+    return reply.status(200).send(estatisticas)
   }
 }

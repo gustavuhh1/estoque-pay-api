@@ -2,10 +2,16 @@ import { Prisma, type Cliente } from "../../../../generated/prisma/client.js"
 import { ClienteCpfAlreadyInUseError, NotFoundError } from "@/shared/errors"
 import type {
   CreateClienteDTO,
+  EstatisticasCliente,
   ListClientesQuery,
+  ListComprasQuery,
   UpdateClienteDTO,
 } from "../dto/cliente.dto"
-import type { ClientesPaginados, IClienteRepository } from "../repository/IClienteRepository"
+import type {
+  ClientesPaginados,
+  ComprasPaginadas,
+  IClienteRepository,
+} from "../repository/IClienteRepository"
 
 /**
  * RF01.1 a RF01.4 — issue #57.
@@ -98,6 +104,59 @@ export class ClienteService {
       }
 
       throw error
+    }
+  }
+
+  /**
+   * RF02.1 — issue #58. O vínculo venda↔cliente é gravado pelo pagamento
+   * (`cliente_id` no POST /pagamento); aqui só se lê o que ficou indexado.
+   */
+  async listarCompras(
+    id: string,
+    estabelecimentoId: string,
+    query: ListComprasQuery
+  ): Promise<ComprasPaginadas & { page: number; limit: number }> {
+    await this.findById(id, estabelecimentoId)
+
+    const { data, total } = await this.clienteRepository.findCompras(
+      id,
+      estabelecimentoId,
+      query
+    )
+
+    return { data, total, page: query.page, limit: query.limit }
+  }
+
+  /**
+   * RF02.2 — issue #58. Só vendas PAGAS entram: venda cancelada foi estornada
+   * e Pix pendente nunca foi pago, nenhum dos dois é consumo do cliente.
+   */
+  async estatisticas(
+    id: string,
+    estabelecimentoId: string,
+    top: number
+  ): Promise<EstatisticasCliente> {
+    await this.findById(id, estabelecimentoId)
+
+    const [resumo, produtosFavoritos] = await Promise.all([
+      this.clienteRepository.resumoDeCompras(id, estabelecimentoId),
+      this.clienteRepository.produtosFavoritos(id, estabelecimentoId, top),
+    ])
+
+    // Decimal até o fim: dividir o total em float daria dízima no ticket médio.
+    const ticketMedio =
+      resumo.total_compras === 0
+        ? new Prisma.Decimal(0)
+        : resumo.valor_total_gasto.div(resumo.total_compras).toDecimalPlaces(2)
+
+    return {
+      cliente_id: id,
+      total_compras: resumo.total_compras,
+      valor_total_gasto: Number(resumo.valor_total_gasto),
+      ticket_medio: Number(ticketMedio),
+      primeira_compra_em: resumo.primeira_compra_em,
+      ultima_compra_em: resumo.ultima_compra_em,
+      produtos_favoritos: produtosFavoritos,
     }
   }
 }
