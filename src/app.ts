@@ -3,7 +3,6 @@ import cors from "@fastify/cors"
 import fastifyRoutes from "@fastify/routes"
 import fastifySwagger from "@fastify/swagger"
 import fastifySwaggerUi from "@fastify/swagger-ui"
-import { toNodeHandler } from "better-auth/node"
 
 import { errorHandler } from "./shared/middlewares/error-handler"
 import routes from "./routes"
@@ -37,9 +36,40 @@ app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
 
 app.register(fastifyRoutes)
+// O better-auth fala Web Request/Response. Entregar o request/reply do Fastify
+// ao `toNodeHandler` quebra (o reply não tem os métodos do ServerResponse do
+// Node), então a ponte é feita aqui, como na integração oficial com Fastify.
 app.all("/api/auth/*", async (request, reply) => {
-  const nodeHandler = toNodeHandler(auth)
-  await nodeHandler(request as any, reply as any)
+  const url = new URL(request.url, `${request.protocol}://${request.headers.host}`)
+
+  const headers = new Headers()
+  for (const [nome, valor] of Object.entries(request.headers)) {
+    if (valor === undefined) continue
+    headers.append(nome, Array.isArray(valor) ? valor.join(", ") : valor)
+  }
+
+  const temCorpo = request.method !== "GET" && request.method !== "HEAD"
+  const corpo =
+    temCorpo && request.body !== undefined
+      ? typeof request.body === "string"
+        ? request.body
+        : JSON.stringify(request.body)
+      : null
+
+  const resposta = await auth.handler(
+    new Request(url, { method: request.method, headers, body: corpo })
+  )
+
+  reply.status(resposta.status)
+  resposta.headers.forEach((valor, nome) => {
+    // Set-Cookie pode vir repetido e não pode ser unido por vírgula; content-length
+    // é recalculado pelo Fastify.
+    if (nome !== "set-cookie" && nome !== "content-length") reply.header(nome, valor)
+  })
+  const cookies = resposta.headers.getSetCookie()
+  if (cookies.length > 0) reply.header("set-cookie", cookies)
+
+  return reply.send(resposta.body ? await resposta.text() : null)
 })
 
 app.register(fastifySwagger, {
