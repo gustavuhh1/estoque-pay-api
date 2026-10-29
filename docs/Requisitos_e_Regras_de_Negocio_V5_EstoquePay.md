@@ -1,6 +1,13 @@
 # EstoquePay — Alinhamento de Requisitos (Versão 5)
 
 > Documento consolidado de Requisitos Funcionais, Regras de Negócio e Requisitos Não Funcionais (MVP Completo).
+>
+> **Atualização de 28/10/2026 — decisões de escopo (D1 a D4).** Onde o texto abaixo diverge destas decisões, **valem as decisões**. Os itens afetados estão marcados com *(D1)*, *(D2)*, *(D3)* ou *(D4)*.
+>
+> - **D1 — Taxa de R$ 0,80 paga pelo consumidor, só no Pix.** O total cobrado em venda Pix é o total dos itens **mais R$ 0,80**. A taxa não existe em dinheiro nem em cartão de maquininha, e é discriminada na nota fiscal simulada e no registro da venda (`Venda.taxa_split`). Substitui a retenção da taxa do lojista via split (Fase 3 RF04.1 e Fase 5 RN02).
+> - **D2 — Assinatura Premium somente no cartão, processada pela AbacatePay em modo Dev.** R$ 30,00/mês ou R$ 299,90/ano, trial de 7 dias com cartão válido registrado antes da ativação. Pix não é aceito para assinatura. Ciclo completo: trial, cobrança recorrente, webhooks de status e modo restrito.
+> - **D3 — A emissão real de NFC-e está fora do escopo; a NFC-e é simulada.** Não há integração com Focus NFe, eNotas nem SEFAZ. Após a venda paga, com o Switch Fiscal ativo, o sistema gera, salva e permite imprimir um **espelho** da nota, sempre com o aviso "DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)". As issues #60 e #61 ficam paralisadas; a entrega é a issue #81.
+> - **D4 — Fora do escopo:** emissão fiscal real, o backlog de melhorias futuras (hardening), 2FA, PIN de caixa, DRE e relatórios contábeis.
 
 ## Sumário
 
@@ -125,7 +132,7 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 - **RF02.2 - Pagar em Cartão:** O sistema deve permitir o registro manual para vendas pagas via maquininhas de cartão físicas.
 - **RF03.1 - Gerar QR Code (Pix):** O sistema deve se comunicar dinamicamente com a API do AbacatePay para gerar o QR Code Pix com o valor da compra.
 - **RF03.2 - Confirmação Automática (Webhook):** O sistema deve escutar o webhook do AbacatePay e aprovar a venda de forma automática assim que o pagamento for confirmado.
-- **RF04.1 - Acionar Split:** Em vendas via Pix, o sistema deve aplicar o split de pagamento do AbacatePay para reter a taxa fixa de serviço de R$ 0,80 para a plataforma.
+- **RF04.1 - Cobrar a Taxa de Serviço no Pix *(D1)*:** Em vendas via Pix, o sistema deve somar a taxa fixa de serviço de R$ 0,80 ao total dos itens, de modo que o consumidor paga `total dos itens + R$ 0,80`. A taxa é gravada na venda (`Venda.taxa_split`), vai no valor do QR Code gerado e é discriminada na nota fiscal simulada. Não se aplica a dinheiro nem a cartão de maquininha.
 
 ### 3. Requisitos Funcionais (RFs) — Módulo: Pós-Venda e Turnos
 
@@ -139,7 +146,7 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 - **RN01 - Baixa Postergada:** Produtos no carrinho não deduzem estoque. A baixa ocorre estritamente no momento em que a venda é consolidada e paga.
 - **RN02 - Segurança de Cancelamento:** O cancelamento de vendas concluídas é autorizado unicamente a usuários com cargo `OWNER` ou `MANAGER` (bloqueado para `CASHIER`). O autor e a data ficam registrados em `Venda.cancelada_por_id` / `Venda.cancelada_em`.
 - **RN03 - Auditoria de Devolução:** O cancelamento gera um registro automatizado de entrada na tabela `MovimentacaoEstoque` com o motivo "Estorno/Cancelamento de Venda".
-- **RN04 - Segurança de Turno:** Abertura e fechamento de caixa são estritamente restritos aos cargos `OWNER` ou `MANAGER`. A unicidade do turno aberto é garantida no banco por índice parcial (um turno `ABERTO` por operador em cada loja), não apenas por validação de serviço.
+- **RN04 - Segurança de Turno:** O turno é por **loja**: enquanto houver um `ABERTO`, ninguém abre outro (`409 TURNO_JA_ABERTO`). **Qualquer cargo abre e fecha**, inclusive `CASHIER` — decisão registrada na issue #54, que substituiu a restrição a `OWNER`/`MANAGER` do texto original. A unicidade do turno aberto é garantida no banco por índice parcial (`WHERE status = 'ABERTO'`), não apenas por validação de serviço.
 - **RNF01 - Integridade Transacional:** O fechamento da venda e a dedução do estoque ocorrem em transação atômica única no Prisma (`$transaction`). Se houver falha, a venda é desfeita.
 - **RNF02 - Segurança de Webhooks:** A rota de webhook do AbacatePay valida assinatura criptográfica para bloquear requisições falsas.
 
@@ -159,17 +166,23 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 
 ### 2. Requisitos Funcionais (RFs) — Módulo: Emissão NFC-e (Fiscal)
 
-- **RF03.1 - Disparar Emissão Assíncrona:** Após pagamento confirmado, se a chave de NFC-e estiver ligada, o sistema compila os dados e envia requisição JSON em background para a API parceira (Focus NFe/eNotas).
-- **RF04.1 - Escutar Retorno (Webhook):** Receber a resposta da API terceira assim que a SEFAZ autorizar a nota.
-- **RF04.2 - Armazenamento de Links:** Atualizar o status da venda e salvar unicamente as URLs seguras de download de PDF e XML no banco.
+> **Escopo *(D3)*:** a emissão **real** está fora do escopo. O que se entrega é a **NFC-e simulada** (issue #81). Os RFs abaixo marcados como *paralisados* continuam descritos como referência para uma evolução futura, sem implementação prevista.
+
+- **RF03.1 - Disparar Emissão Assíncrona *(paralisado, D3)*:** Após pagamento confirmado, se a chave de NFC-e estiver ligada, o sistema compila os dados e envia requisição JSON em background para a API parceira (Focus NFe/eNotas). Issue #60.
+- **RF04.1 - Escutar Retorno (Webhook) *(paralisado, D3)*:** Receber a resposta da API terceira assim que a SEFAZ autorizar a nota. Issue #61.
+- **RF04.2 - Armazenamento de Links *(paralisado, D3)*:** Atualizar o status da venda e salvar unicamente as URLs seguras de download de PDF e XML no banco. Issue #61.
+- **RF05.1 - Gerar o Espelho da NFC-e Simulada *(D3)*:** Após a venda paga, com o Switch Fiscal ativo (pre-check da #59, que exige Premium), o sistema gera uma nota simulada e a salva. Issue #81.
+- **RF05.2 - Conteúdo do Espelho *(D3)*:** Dados da loja (nome, CNPJ, IE), itens (nome, quantidade, preço unitário, total), **linha da taxa de R$ 0,80 quando a venda foi Pix (D1)**, forma de pagamento, CPF do consumidor ou "Consumidor Não Identificado", data/hora e numeração sequencial simulada.
+- **RF05.3 - Consultar e Imprimir *(D3)*:** O sistema lista as notas simuladas da loja, consulta uma nota e entrega uma versão imprimível.
 
 ### 3. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 4
 
-- **RN01 - Pre-check de Conformidade:** A emissão da nota só ocorre se a loja possuir o Plano Premium ativo, o Switch de NFC-e ligado e cumprir os requisitos prévios (Certificado A1, CNPJ/IE, sem produtos ativos sem NCM/CFOP).
-- **RN02 - Processamento Assíncrono:** A comunicação fiscal ocorre de forma invisível no servidor, sem atrasar a tela do caixa.
+- **RN01 - Pre-check de Conformidade:** A geração da nota (simulada, *D3*) só ocorre se a loja possuir o Plano Premium ativo, o Switch de NFC-e ligado e cumprir os requisitos prévios (Certificado A1, CNPJ/IE, sem produtos ativos sem NCM/CFOP).
+- **RN02 - Processamento Assíncrono:** A geração da nota ocorre de forma invisível no servidor, sem atrasar a tela do caixa, e uma falha ao gerá-la **não desfaz a venda** já paga.
 - **RN03 - CPF Opcional:** Informar CPF na venda é opcional; se vazio, a nota é emitida como "Consumidor Não Identificado".
-- **RN04 - Terceirização Fiscal Absoluta:** É proibido gerar XMLs manualmente ou comunicar-se diretamente com a SEFAZ via SOAP, delegando tudo à API parceira.
-- **RNF01 - Tolerância a Falhas:** Se a API terceira estiver fora do ar, o sistema marca o status como ERRO e permite reenvio posterior pelo painel, sem travar o PDV.
+- **RN04 - Terceirização Fiscal Absoluta *(paralisada, D3)*:** É proibido gerar XMLs manualmente ou comunicar-se diretamente com a SEFAZ via SOAP, delegando tudo à API parceira. Como não há emissão real, o espelho é apenas um documento de demonstração: **não é XML fiscal e não consulta a SEFAZ**.
+- **RN05 - Aviso de Simulação Obrigatório *(D3)*:** Todo documento gerado (resposta da API, tela e impressão) exibe de forma visível o texto **"DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)"**. Chave de acesso, protocolo e QR Code, se existirem, são fictícios e identificados como simulação; o documento não aponta para consulta de SEFAZ real nem imita um documento oficial de forma enganosa.
+- **RNF01 - Tolerância a Falhas *(paralisado, D3)*:** Se a API terceira estiver fora do ar, o sistema marca o status como ERRO e permite reenvio posterior pelo painel, sem travar o PDV.
 
 ---
 
@@ -178,7 +191,7 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 ### 1. Requisitos Funcionais (RFs) — Módulo: Assinaturas & Billing
 
 - **RF01.1 - Seleção de Plano:** O sistema deve exibir as opções de assinatura do plano Premium (R$ 30,00 mensais ou R$ 299,90 anuais) na interface de configurações.
-- **RF01.2 - Onboarding com Trial (7 Dias):** O sistema deve permitir que novos usuários ativem o período de testes de 7 dias gratuitos do plano Premium, exigindo obrigatoriamente o registro prévio de um meio de pagamento válido (Pix ou Cartão de Crédito) através do AbacatePay.
+- **RF01.2 - Onboarding com Trial (7 Dias):** O sistema deve permitir que novos usuários ativem o período de testes de 7 dias gratuitos do plano Premium, exigindo obrigatoriamente o registro prévio de um **cartão de crédito** válido através do AbacatePay *(D2: a assinatura não aceita Pix)*. O cartão é tokenizado no navegador e o backend nunca o recebe.
 - **RF01.3 - Cobrança Recorrente:** O sistema deve integrar-se com o AbacatePay para processar automaticamente as cobranças recorrentes das assinaturas utilizando o meio de pagamento tokenizado.
 - **RF01.4 - Gestão de Status da Assinatura:** O sistema deve escutar os webhooks do AbacatePay para atualizar em tempo real o status da assinatura do estabelecimento (ativa, em trial, inadimplente ou cancelada).
 
@@ -186,7 +199,7 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 
 - **RN00 - Plano Derivado (fonte única da verdade):** O plano não é uma coluna do `Estabelecimento`. Ele é **derivado** de `Assinatura.status`: vale PREMIUM apenas em `TRIALING` ou `ACTIVE`; loja sem assinatura, ou com status `PAST_DUE`/`CANCELED`, é tratada sob os limites do Free. Isso evita que um campo `plano` e o status da assinatura divirjam durante inadimplência.
 - **RN01 - Limites Estritos do Plano Free:** Lojas no plano Free possuem travas operacionais rígidas: limite máximo de 50 produtos cadastrados ativos, máximo de 3 membros na equipe (contando obrigatoriamente o `OWNER`), CRM restrito exclusivamente aos campos de CPF e Nome, e emissão de NFC-e totalmente desativada.
-- **RN02 - Manutenção de Taxa Pix no PDV:** O plano Premium não isenta a loja da taxa fixa de R$ 0,80 por transação Pix realizada no PDV, mantendo o modelo de split padrão.
+- **RN02 - Taxa Pix no PDV *(D1)*:** O plano Premium não isenta a venda Pix da taxa fixa de R$ 0,80, que é **paga pelo consumidor** (total dos itens + R$ 0,80) e não retida do lojista. Vale só para Pix; não existe em dinheiro nem em cartão de maquininha. Ver Fase 3, RF04.1.
 - **RN03 - Comportamento em Downgrade / Inadimplência (Opção B):** Se a assinatura expirar ou o pagamento falhar, a loja não perde o acesso ao painel, mas entra em modo restrito: a NFC-e é desligada imediatamente, e o sistema bloqueia o cadastro de *novos* produtos ou funcionários caso a contagem atual ultrapasse os limites do plano Free.
 - **RN04 - Exigência de Pagamento no Trial:** É proibido ativar os 7 dias gratuitos de teste sem que o AbacatePay confirme o registro de um meio de pagamento válido vinculado ao cliente.
 
