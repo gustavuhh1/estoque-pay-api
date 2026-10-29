@@ -1,4 +1,4 @@
-import type { MetodoPagamento } from "../../../../generated/prisma/client.js"
+import type { MetodoPagamento, StatusPagamento } from "../../../../generated/prisma/client.js"
 import type { VendaComItens } from "../dto/venda.dto"
 
 export interface ItemParaGravar {
@@ -57,7 +57,28 @@ export interface CancelarVendaParams {
   itens: Array<{ produto_id: string; quantidade: number }>
 }
 
+/** `| undefined` explícito por causa do exactOptionalPropertyTypes do tsconfig. */
+export interface ListarVendasParams {
+  estabelecimento_id: string
+  /** Quando informado, só as vendas registradas por este operador. */
+  usuario_id?: string | undefined
+  status?: StatusPagamento | undefined
+  /** Intervalo sobre `criada_em` (inclusivo nas duas pontas). */
+  de?: Date | undefined
+  ate?: Date | undefined
+  pagina: number
+  limite: number
+}
+
+export interface PaginaDeVendas {
+  itens: VendaComItens[]
+  /** Total de vendas que casam com o filtro, ignorando a paginação. */
+  total: number
+}
+
 export interface IVendaRepository {
+  /** Mais recentes primeiro. Sempre escopado à loja. */
+  listar(params: ListarVendasParams): Promise<PaginaDeVendas>
   /**
    * RNF01 — o coração da issue #51.
    *
