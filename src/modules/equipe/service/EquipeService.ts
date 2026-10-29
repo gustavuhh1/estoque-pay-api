@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/brevo"
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/errors"
 import type { IAuthRepository } from "@/modules/auth/repository/IAuthRepository"
 import type { IEstabelecimentoRepository } from "@/modules/estabelecimento/repository/IEstabelecimentoRepository"
+import type { PlanoService } from "@/modules/billing/service/PlanoService"
 import type { CreateFuncionarioDTO, UpdateFuncionarioDTO } from "../dto/equipe.dto"
 import type { IConviteRepository } from "../repository/IConviteRepository"
 import type { IEquipeRepository } from "../repository/IEquipeRepository"
@@ -15,7 +16,8 @@ export class EquipeService {
     private equipeRepository: IEquipeRepository,
     private conviteRepository: IConviteRepository,
     private authRepository: IAuthRepository,
-    private estabelecimentoRepository: IEstabelecimentoRepository
+    private estabelecimentoRepository: IEstabelecimentoRepository,
+    private planoService: PlanoService
   ) {}
 
   /** RN04/05: Caixa tem acesso estrito ao PDV — gestão de equipe é só de Gestor/Owner/Admin. */
@@ -83,6 +85,16 @@ export class EquipeService {
         throw new NotFoundError("Estabelecimento não encontrado.")
       }
 
+      // RN01 (Fase 5): convite pendente já ocupa vaga (vira membro ao se
+      // cadastrar). Reenviar para quem JÁ está convidado só atualiza o convite,
+      // então não pode ser barrado por contar a si mesmo.
+      const pendentes =
+        await this.conviteRepository.findManyPendentesByEstabelecimento(estabelecimentoId)
+
+      if (!pendentes.some((pendente) => pendente.email === data.email)) {
+        await this.planoService.garantirPodeAdicionarMembro(estabelecimentoId)
+      }
+
       const convite = await this.conviteRepository.upsertPendente({
         email: data.email,
         estabelecimentoId,
@@ -112,6 +124,9 @@ export class EquipeService {
         "FUNCIONARIO_JA_VINCULADO"
       )
     }
+
+    // RN01 (Fase 5): teto de membros do Free, Owner incluído.
+    await this.planoService.garantirPodeAdicionarMembro(estabelecimentoId)
 
     try {
       const membro = await this.equipeRepository.create(estabelecimentoId, usuario.id, data.role)

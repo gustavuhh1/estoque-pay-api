@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { sendEmail } from "@/lib/brevo"
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/errors"
@@ -35,7 +37,8 @@ describe("EquipeService", () => {
       new EquipePrismaRepository(prisma),
       new ConvitePrismaRepository(prisma),
       new AuthPrismaRepository(prisma),
-      new EstabelecimentoPrismaRepository(prisma)
+      new EstabelecimentoPrismaRepository(prisma),
+      new PlanoService(new PlanoPrismaRepository(prisma))
     )
   })
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { app } from "@/app"
 import { prisma } from "@/lib/prisma"
+import { criarAssinatura } from "@/shared/tests/assinatura"
 import { createAuthenticatedUser } from "@/shared/tests/create-authenticated-user"
 import type { Role } from "../../../../generated/prisma/client.js"
 
@@ -8,8 +9,18 @@ const CNPJ_VALIDO = "11222333000181"
 const OUTRO_CNPJ_VALIDO = "11444777000161"
 const CPF_VALIDO = "52998224725"
 
-async function criarEstabelecimento(cnpj = CNPJ_VALIDO) {
-  return prisma.estabelecimento.create({ data: { nome: "Loja de Teste", cnpj } })
+/**
+ * Premium por padrão: estes testes cobrem o CRUD de clientes, e o Free só guarda
+ * CPF e Nome (RN01 da Fase 5, testada à parte em `cliente-plano.spec.ts`).
+ */
+async function criarEstabelecimento(cnpj = CNPJ_VALIDO, premium = true) {
+  const loja = await prisma.estabelecimento.create({ data: { nome: "Loja de Teste", cnpj } })
+
+  if (premium) {
+    await criarAssinatura(loja.id)
+  }
+
+  return loja
 }
 
 async function criarMembroLogado(lojaId: string, role: Role = "OWNER") {

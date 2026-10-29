@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import {
   ForbiddenError,
@@ -65,7 +67,7 @@ describe("VendaService.cancelar (#53 — RF05.1/RF05.2 + RN02/RN03)", () => {
       vendaRepository,
       new VendaService(produtoRepository, vendaRepository),
       caixaRepository,
-      new ClienteService(clienteRepository),
+      new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
       new InMemoryPagamentoGateway()
     )

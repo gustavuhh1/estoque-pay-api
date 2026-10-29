@@ -15,6 +15,8 @@ import { ClientePrismaRepository } from "@/modules/crm/repository/ClientePrismaR
 import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepository"
 import { ClienteService } from "@/modules/crm/service/ClienteService"
 import { CupomService } from "@/modules/crm/service/CupomService"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -54,7 +56,7 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
       vendaRepository,
       new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
       new CaixaPrismaRepository(prisma),
-      new ClienteService(clienteRepository),
+      new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
       gateway
     )

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import {
   EstoqueInsuficienteError,
@@ -59,7 +61,7 @@ describe("PagamentoService.registrarPagamentoManual (#51 — RF02.1/RF02.2/RNF01
       vendaRepository,
       new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
       caixaRepository,
-      new ClienteService(clienteRepository),
+      new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
       new InMemoryPagamentoGateway()
     )
@@ -273,7 +275,7 @@ describe("PagamentoService — Pix (#52, #79, D1)", () => {
       vendaRepository,
       new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
       caixaRepository,
-      new ClienteService(clienteRepository),
+      new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
       gateway
     )
