@@ -104,7 +104,7 @@ Cria (ou recoloca no estado de partida) o usuário `premium-teste@exemplo.com` c
 | Loja Premium Inadimplente | `PAST_DUE` | desligado (como o webhook deixa) | 15 |
 | Loja Premium Ativa | `ACTIVE` mensal | ligado | 16 |
 
-O script imprime o id de cada loja e a senha de teste. Rodar de novo restaura as três, útil depois de gastar o trial ou de testar a inadimplência.
+As lojas com NFC-e ligada (Trial e Ativa) já têm IE e certificado A1 com senha simulados, e a Ativa vem com 3 produtos com NCM, CFOP e estoque, prontos para vender e emitir a nota simulada. O script imprime o id de cada loja e a senha de teste. Rodar de novo restaura as três, útil depois de gastar o trial ou de testar a inadimplência.
 
 ## Região do banco: fica junto da API
 
