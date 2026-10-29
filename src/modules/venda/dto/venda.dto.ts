@@ -82,6 +82,38 @@ export const vendaResponseSchema = z.object({
   criada_em: z.date(),
 })
 
+/** Listagem do histórico de vendas: filtros opcionais e paginação. */
+export const listarVendasQuerySchema = z
+  .object({
+    status: z.enum(["PENDENTE", "PAGO", "CANCELADO"]).optional(),
+    /** Início do período (ISO 8601). Vale `criada_em >= de`. */
+    de: z.coerce.date().optional(),
+    /** Fim do período (ISO 8601). Vale `criada_em <= ate`. */
+    ate: z.coerce.date().optional(),
+    pagina: z.coerce.number().int().min(1).default(1),
+    limite: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => !q.de || !q.ate || q.de <= q.ate, {
+    message: "O início do período não pode ser depois do fim.",
+    path: ["de"],
+  })
+export type ListarVendasQuery = z.infer<typeof listarVendasQuerySchema>
+
+export const vendaListaItemResponseSchema = vendaResponseSchema.extend({
+  /** D1: itens menos cupom mais a taxa do Pix. É o que o consumidor pagou. */
+  total_cobrado: z.number(),
+  pago_em: z.date().nullish(),
+  cancelada_em: z.date().nullish(),
+  nfe_numero: z.number().nullish(),
+})
+
+export const listVendasResponseSchema = z.object({
+  itens: z.array(vendaListaItemResponseSchema),
+  total: z.number(),
+  pagina: z.number(),
+  limite: z.number(),
+})
+
 export type VendaComItens = Venda & {
   itens: Array<ItemVenda & { produto: { nome: string } }>
 }
@@ -112,6 +144,19 @@ export function toVendaResponse(venda: VendaComItens) {
       subtotal: Number(item.subtotal),
     })),
     criada_em: venda.criada_em,
+  }
+}
+
+export function toVendaListaItemResponse(venda: VendaComItens) {
+  const base = toVendaResponse(venda)
+
+  return {
+    ...base,
+    // Arredonda para não vazar ruído de ponto flutuante (0.1 + 0.2).
+    total_cobrado: Math.round((base.total_venda + (base.taxa_split ?? 0)) * 100) / 100,
+    pago_em: venda.pago_em,
+    cancelada_em: venda.cancelada_em,
+    nfe_numero: venda.nfe_numero,
   }
 }
 

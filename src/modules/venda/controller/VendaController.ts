@@ -2,9 +2,11 @@ import type { FastifyReply, FastifyRequest } from "fastify"
 import { UnauthorizedError } from "@/shared/errors"
 import {
   toProdutoBuscaResponse,
+  toVendaListaItemResponse,
   toVendaResponse,
   type BuscarProdutoQuery,
   type CalcularVendaDTO,
+  type ListarVendasQuery,
   type VendaIdParams,
 } from "../dto/venda.dto"
 import { VendaService } from "../service/VendaService"
@@ -13,6 +15,28 @@ import { VendaService } from "../service/VendaService"
 // não há `schema.parse()` aqui (mesmo padrão do EstoqueController).
 export class VendaController {
   constructor(private vendaService: VendaService) {}
+
+  /** Histórico de vendas: Caixa só enxerga as próprias. */
+  async listar(
+    request: FastifyRequest<{ Querystring: ListarVendasQuery }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro || !request.user) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const resultado = await this.vendaService.listar(
+      request.membro.estabelecimentoId,
+      request.user.id,
+      request.membro.role,
+      request.query
+    )
+
+    return reply.status(200).send({
+      ...resultado,
+      itens: resultado.itens.map(toVendaListaItemResponse),
+    })
+  }
 
   /** RF01.1 */
   async buscarProdutos(
