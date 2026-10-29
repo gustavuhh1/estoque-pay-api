@@ -16,6 +16,7 @@ import { CaixaPrismaRepository } from "@/modules/caixa/repository/CaixaPrismaRep
 import { VendaPrismaRepository } from "@/modules/venda/repository/VendaPrismaRepository"
 import { VendaService } from "@/modules/venda/service/VendaService"
 import { PagamentoService } from "@/modules/pagamento/service/PagamentoService"
+import { InMemoryPagamentoGateway } from "@/modules/pagamento/gateway/InMemoryPagamentoGateway"
 import { ClientePrismaRepository } from "../repository/ClientePrismaRepository"
 import { CupomPrismaRepository } from "../repository/CupomPrismaRepository"
 import { ClienteService } from "../service/ClienteService"
@@ -79,7 +80,8 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
       vendaService,
       caixaRepository,
       clienteService,
-      cupomService
+      cupomService,
+      new InMemoryPagamentoGateway()
     )
   })
 

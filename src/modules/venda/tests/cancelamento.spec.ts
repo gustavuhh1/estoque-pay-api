@@ -11,6 +11,7 @@ import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPri
 import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePrismaRepository"
 import { CaixaPrismaRepository } from "@/modules/caixa/repository/CaixaPrismaRepository"
 import { PagamentoService } from "@/modules/pagamento/service/PagamentoService"
+import { InMemoryPagamentoGateway } from "@/modules/pagamento/gateway/InMemoryPagamentoGateway"
 import { ClientePrismaRepository } from "@/modules/crm/repository/ClientePrismaRepository"
 import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepository"
 import { ClienteService } from "@/modules/crm/service/ClienteService"
@@ -65,7 +66,8 @@ describe("VendaService.cancelar (#53 — RF05.1/RF05.2 + RN02/RN03)", () => {
       new VendaService(produtoRepository, vendaRepository),
       caixaRepository,
       new ClienteService(clienteRepository),
-      new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
+      new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
+      new InMemoryPagamentoGateway()
     )
   })
 

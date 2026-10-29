@@ -133,6 +133,8 @@ O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecim
 - **RF03.1 - Gerar QR Code (Pix):** O sistema deve se comunicar dinamicamente com a API do AbacatePay para gerar o QR Code Pix com o valor da compra.
 - **RF03.2 - Confirmação Automática (Webhook):** O sistema deve escutar o webhook do AbacatePay e aprovar a venda de forma automática assim que o pagamento for confirmado.
 - **RF04.1 - Cobrar a Taxa de Serviço no Pix *(D1)*:** Em vendas via Pix, o sistema deve somar a taxa fixa de serviço de R$ 0,80 ao total dos itens, de modo que o consumidor paga `total dos itens + R$ 0,80`. A taxa é gravada na venda (`Venda.taxa_split`), vai no valor do QR Code gerado e é discriminada na nota fiscal simulada. Não se aplica a dinheiro nem a cartão de maquininha.
+  - **Análise do split (28/10/2026):** a documentação pública da AbacatePay (índice `llms.txt`) não tem split, marketplace nem campo para o integrador declarar taxa própria; o `platformFee` da resposta é só a tarifa que a AbacatePay desconta. Por isso a taxa é somada ao valor da cobrança e cai na conta dona da chave de API. A regra de negócio (consumidor paga R$ 0,80 no Pix e isso consta na nota) vale independente do mecanismo de repasse.
+  - **Registro:** `Venda.total_venda` guarda os itens menos o cupom, `Venda.taxa_split` guarda os R$ 0,80 e o valor do QR Code é `total_venda + taxa_split`.
 
 ### 3. Requisitos Funcionais (RFs) — Módulo: Pós-Venda e Turnos
 

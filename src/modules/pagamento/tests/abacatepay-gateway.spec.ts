@@ -335,3 +335,76 @@ describe("AbacatePayGateway.verificarAssinaturaWebhook (#52 — RNF02)", () => {
     ).toThrow(/ABACATEPAY_WEBHOOK_SECRET/)
   })
 })
+
+describe("AbacatePayGateway.verificarSegredoWebhook (#79 — ?webhookSecret=)", () => {
+  it("aceita o segredo configurado", () => {
+    expect(gateway().verificarSegredoWebhook(CONFIG.webhookSecret)).toBe(true)
+  })
+
+  it("recusa segredo errado, ausente ou vazio", () => {
+    expect(gateway().verificarSegredoWebhook("segredo-do-atacante")).toBe(false)
+    expect(gateway().verificarSegredoWebhook(undefined)).toBe(false)
+    expect(gateway().verificarSegredoWebhook("")).toBe(false)
+  })
+
+  it("recusa segredo de tamanho diferente sem estourar o timingSafeEqual", () => {
+    expect(() => gateway().verificarSegredoWebhook("x")).not.toThrow()
+    expect(gateway().verificarSegredoWebhook("x")).toBe(false)
+  })
+
+  it("sem segredo configurado, falha alto em vez de aceitar qualquer coisa", () => {
+    const semSegredo = new AbacatePayGateway({ ...CONFIG, webhookSecret: "" })
+
+    expect(() => semSegredo.verificarSegredoWebhook("qualquer")).toThrow(
+      /ABACATEPAY_WEBHOOK_SECRET/
+    )
+  })
+})
+
+describe("AbacatePayGateway — chave do HMAC (#79, documentação ambígua)", () => {
+  const corpo = JSON.stringify({ id: "log_1", event: "transparent.completed" })
+  const assinarCom = (chave: string) =>
+    crypto.createHmac("sha256", chave).update(Buffer.from(corpo, "utf8")).digest("base64")
+
+  it("aceita a assinatura feita com a chave pública configurada", () => {
+    const comChavePublica = new AbacatePayGateway({
+      ...CONFIG,
+      webhookHmacKey: "chave-publica-da-abacatepay",
+    })
+
+    expect(
+      comChavePublica.verificarAssinaturaWebhook(
+        Buffer.from(corpo, "utf8"),
+        assinarCom("chave-publica-da-abacatepay")
+      )
+    ).toBe(true)
+  })
+
+  it("com a chave pública configurada, continua aceitando a assinada pelo secret", () => {
+    const comChavePublica = new AbacatePayGateway({
+      ...CONFIG,
+      webhookHmacKey: "chave-publica-da-abacatepay",
+    })
+
+    expect(
+      comChavePublica.verificarAssinaturaWebhook(
+        Buffer.from(corpo, "utf8"),
+        assinarCom(CONFIG.webhookSecret)
+      )
+    ).toBe(true)
+  })
+
+  it("uma terceira chave qualquer não passa", () => {
+    const comChavePublica = new AbacatePayGateway({
+      ...CONFIG,
+      webhookHmacKey: "chave-publica-da-abacatepay",
+    })
+
+    expect(
+      comChavePublica.verificarAssinaturaWebhook(
+        Buffer.from(corpo, "utf8"),
+        assinarCom("chave-do-atacante")
+      )
+    ).toBe(false)
+  })
+})

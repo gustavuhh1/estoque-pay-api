@@ -11,9 +11,21 @@ import { codigoCupomSchema } from "@/modules/crm/dto/cupom.dto"
  */
 const metodoManualSchema = z.enum(["DINHEIRO", "DEBITO", "CREDITO"])
 
+/** Campos que toda venda tem, manual ou Pix. */
+const camposDaVenda = {
+  itens: z.array(itemCarrinhoSchema).min(1, "A venda precisa de ao menos um item."),
+  /** RF02.1 (#58): indexa a venda ao histórico do cliente. */
+  cliente_id: z.uuid().optional(),
+  /**
+   * RF02.3 (#58): resgata o cupom nesta venda. Cupom nominal exige o
+   * `cliente_id` do dono dele.
+   */
+  cupom_codigo: codigoCupomSchema.optional(),
+}
+
 export const registrarPagamentoSchema = z
   .object({
-    itens: z.array(itemCarrinhoSchema).min(1, "A venda precisa de ao menos um item."),
+    ...camposDaVenda,
     metodo_pagamento: metodoManualSchema,
     /** Obrigatório só em DINHEIRO — é o que permite calcular o troco. */
     valor_pago: z
@@ -21,13 +33,6 @@ export const registrarPagamentoSchema = z
       .min(0)
       .multipleOf(0.01, "O valor aceita no máximo 2 casas decimais.")
       .optional(),
-    /** RF02.1 (#58): indexa a venda ao histórico do cliente. */
-    cliente_id: z.uuid().optional(),
-    /**
-     * RF02.3 (#58): resgata o cupom nesta venda. Cupom nominal exige o
-     * `cliente_id` do dono dele.
-     */
-    cupom_codigo: codigoCupomSchema.optional(),
   })
   .superRefine((data, ctx) => {
     // A coerência mora no schema (e não no Service) porque depende só de
@@ -58,6 +63,46 @@ export const pagamentoResponseSchema = z.object({
   /** Só em DINHEIRO. Null nos demais métodos. */
   troco: z.number().nullish(),
   turno_id: z.string(),
+  itens: z.array(
+    z.object({
+      produto_id: z.uuid(),
+      produto_nome: z.string(),
+      quantidade: z.number(),
+      preco_unitario: z.number(),
+      subtotal: z.number(),
+    })
+  ),
+  criada_em: z.date(),
+})
+
+/**
+ * Pix (#52, D1). Sem `metodo_pagamento` (é sempre Pix) e sem `valor_pago` (não
+ * há troco): o cliente paga o QR Code, e o valor sai do banco, nunca do corpo.
+ */
+export const iniciarPagamentoPixSchema = z.object(camposDaVenda)
+export type IniciarPagamentoPixDTO = z.infer<typeof iniciarPagamentoPixSchema>
+
+export const pagamentoPixResponseSchema = z.object({
+  venda_id: z.uuid(),
+  cliente_id: z.string().nullish(),
+  /** Soma dos itens, antes do desconto do cupom. */
+  subtotal: z.number(),
+  desconto: z.number(),
+  cupom_codigo: z.string().nullish(),
+  /** Itens menos o cupom — a receita da loja. NÃO inclui a taxa do Pix. */
+  total_venda: z.number(),
+  /** D1: taxa de serviço do Pix, paga pelo consumidor. */
+  taxa_pix: z.number(),
+  /** O que o consumidor paga no QR Code: `total_venda + taxa_pix`. */
+  total_cobrado: z.number(),
+  status_pagamento: z.enum(["PENDENTE", "PAGO", "CANCELADO"]),
+  turno_id: z.string(),
+  payment_id: z.string(),
+  /** Pix copia e cola. */
+  qr_code: z.string(),
+  /** Data URI da imagem do QR Code. */
+  qr_code_imagem: z.string(),
+  expira_em: z.date(),
   itens: z.array(
     z.object({
       produto_id: z.uuid(),

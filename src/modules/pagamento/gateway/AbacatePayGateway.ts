@@ -49,13 +49,21 @@ interface RespostaTransparent {
 export class AbacatePayGateway implements IPagamentoGateway {
   private readonly apiKey: string
   private readonly webhookSecret: string
+  private readonly webhookHmacKey: string
   private readonly baseUrl: string
 
-  constructor(config?: { apiKey?: string; webhookSecret?: string; baseUrl?: string }) {
+  constructor(config?: {
+    apiKey?: string
+    webhookSecret?: string
+    webhookHmacKey?: string
+    baseUrl?: string
+  }) {
     // Mesmo padrão de src/lib/brevo.ts e src/lib/resend.ts: lê do process.env,
     // sem schema central (o projeto não tem um).
     this.apiKey = config?.apiKey ?? process.env.ABACATEPAY_API_KEY ?? ""
     this.webhookSecret = config?.webhookSecret ?? process.env.ABACATEPAY_WEBHOOK_SECRET ?? ""
+    this.webhookHmacKey =
+      config?.webhookHmacKey ?? process.env.ABACATEPAY_WEBHOOK_HMAC_KEY ?? ""
     this.baseUrl = config?.baseUrl ?? process.env.ABACATEPAY_BASE_URL ?? BASE_URL_PADRAO
   }
 
@@ -84,16 +92,10 @@ export class AbacatePayGateway implements IPagamentoGateway {
         }),
         metadata: { vendaId: params.venda_id },
       },
-      // TODO(#52, split de R$ 0,80): a documentação pública do
-      // /transparents/create NÃO mostra campo para o lojista declarar o split.
-      // O `platformFee` aparece só na RESPOSTA, o que sugere que a retenção é
-      // configurada na conta/parceria e não por requisição. Confirmar com a
-      // AbacatePay (suporte ou docs de marketplace) antes de ligar em produção:
-      //   1. o split é por requisição (campo aqui) ou por configuração da conta?
-      //   2. se for por requisição, qual o nome exato do campo?
-      //   3. R$ 0,80 é valor fixo ou entra como percentual?
-      // Enquanto isso, a asserção "envia o split" do critério de aceite da #52
-      // NÃO está cumprida — está apenas isolada aqui, num ponto só.
+      // D1 / #79: NÃO há split aqui. A documentação pública não tem campo de
+      // split nem de taxa do integrador; a taxa de R$ 0,80 é somada ao `amount`
+      // pelo Service (quem cobra o consumidor), e este gateway só repassa o valor
+      // que recebe. Análise completa em docs/Requisitos...V5 (Fase 3, RF04.1).
     }
 
     const resposta = await fetch(`${this.baseUrl}/transparents/create`, {
@@ -201,8 +203,33 @@ export class AbacatePayGateway implements IPagamentoGateway {
   }
 
   /**
+   * #79 — primeira camada do webhook. A AbacatePay manda o `secret` cadastrado
+   * no webhook como `?webhookSecret=` na URL de cada entrega. Comparação em
+   * tempo constante pelo mesmo motivo do HMAC abaixo.
+   */
+  verificarSegredoWebhook(segredo: string | undefined): boolean {
+    if (!this.webhookSecret) {
+      throw new Error(
+        "ABACATEPAY_WEBHOOK_SECRET não configurada — impossível validar o webhook."
+      )
+    }
+
+    if (!segredo) return false
+
+    return this.compararEmTempoConstante(this.webhookSecret, segredo)
+  }
+
+  /**
    * RNF02. HMAC-SHA256 do corpo CRU, digest em base64, comparado em tempo
    * constante — exatamente o exemplo em Node da documentação deles.
+   *
+   * QUAL CHAVE ASSINA é ambíguo na documentação pública: a página de criação do
+   * webhook diz que o `secret` é a "chave usada para assinar os payloads", mas o
+   * exemplo de verificação usa uma constante `ABACATEPAY_PUBLIC_KEY`. Por isso
+   * aceitamos as duas: `ABACATEPAY_WEBHOOK_HMAC_KEY` (a chave pública, se
+   * configurada) e `ABACATEPAY_WEBHOOK_SECRET`. Nenhuma abre a porta sozinha — a
+   * rota também exige o `webhookSecret` da query. Confirmar com a primeira
+   * entrega real em modo dev e, descoberta a chave certa, remover a outra.
    *
    * `timingSafeEqual` estoura se os buffers têm tamanhos diferentes, por isso a
    * comparação de length vem antes. Ela também é o motivo de não usar `===`:
@@ -218,13 +245,21 @@ export class AbacatePayGateway implements IPagamentoGateway {
 
     if (!assinatura) return false
 
-    const esperada = crypto
-      .createHmac("sha256", this.webhookSecret)
-      .update(corpoCru)
-      .digest("base64")
+    const chaves = [this.webhookHmacKey, this.webhookSecret].filter(Boolean)
 
-    const a = Buffer.from(esperada)
-    const b = Buffer.from(assinatura)
+    // Sem `some` curto-circuitando em ordem de falha: ambas as chaves são
+    // avaliadas, então o tempo não revela qual delas casou.
+    return chaves
+      .map((chave) => {
+        const esperada = crypto.createHmac("sha256", chave).update(corpoCru).digest("base64")
+        return this.compararEmTempoConstante(esperada, assinatura)
+      })
+      .some(Boolean)
+  }
+
+  private compararEmTempoConstante(esperado: string, recebido: string): boolean {
+    const a = Buffer.from(esperado)
+    const b = Buffer.from(recebido)
 
     return a.length === b.length && crypto.timingSafeEqual(a, b)
   }

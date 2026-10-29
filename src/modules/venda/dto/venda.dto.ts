@@ -72,7 +72,10 @@ export const vendaResponseSchema = z.object({
   turno_id: z.string().nullish(),
   usuario_id: z.string(),
   cliente_id: z.string().nullish(),
+  /** Itens menos o cupom. NÃO inclui a taxa do Pix. */
   total_venda: z.number(),
+  /** D1: taxa de serviço paga pelo consumidor. Só existe em venda Pix. */
+  taxa_split: z.number().nullish(),
   metodo_pagamento: z.enum(["PIX_ABACATEPAY", "DINHEIRO", "DEBITO", "CREDITO"]),
   status_pagamento: z.enum(["PENDENTE", "PAGO", "CANCELADO"]),
   itens: z.array(itemVendaResponseSchema),
@@ -97,6 +100,7 @@ export function toVendaResponse(venda: VendaComItens) {
     usuario_id: venda.usuario_id,
     cliente_id: venda.cliente_id,
     total_venda: Number(venda.total_venda),
+    taxa_split: venda.taxa_split === null ? null : Number(venda.taxa_split),
     metodo_pagamento: venda.metodo_pagamento,
     status_pagamento: venda.status_pagamento,
     itens: venda.itens.map((item) => ({
