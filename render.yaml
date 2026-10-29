@@ -1,0 +1,64 @@
+# Blueprint da Render para a API do EstoquePay (Etapa 5).
+# Passo a passo completo em docs/Hospedagem_Render_Neon_Vercel.md.
+#
+# Segredos NUNCA entram aqui: as variáveis `sync: false` são preenchidas no
+# painel da Render na primeira vez que o Blueprint é criado.
+services:
+  - type: web
+    name: estoquepay-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Plano gratuito: hiberna após 15 min sem tráfego e leva ~1 min para acordar.
+    plan: free
+    # Virgínia (EUA leste) é a região gratuita mais próxima do Brasil. Mantenha o
+    # banco no Neon na mesma região (AWS US East 1) para a latência ficar baixa.
+    region: virginia
+    # `main` é só produção (ver o README): a Render faz deploy dela.
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # A imagem já define NODE_ENV=production. Aqui fica explícito.
+      - key: NODE_ENV
+        value: production
+      # Banco no Neon. Use a conexão DIRETA (a que NÃO tem "-pooler" no host) e
+      # `?sslmode=require`: o `prisma migrate deploy` do entrypoint não funciona
+      # atrás do pooler.
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # URL PÚBLICA do FRONT (o front faz proxy de /api para esta API). É nela que
+      # o navegador enxerga o cookie de sessão e o callback do Google.
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      # Origens extras aceitas pelo CORS e pelo better-auth (opcional; o APP_URL já entra).
+      - key: TRUSTED_ORIGINS
+        sync: false
+      # Login com Google (opcional).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # E-mail transacional.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: EstoquePay
+      # AbacatePay em MODO DEV: use uma chave `dev`, nunca a de produção.
+      - key: ABACATEPAY_API_KEY
+        sync: false
+      - key: ABACATEPAY_WEBHOOK_SECRET
+        sync: false
+      - key: ABACATEPAY_WEBHOOK_HMAC_KEY
+        sync: false
+      # Religa a simulação de Pix, que só existe para chave DEV. Remova se um dia
+      # a AbacatePay passar a usar chave de produção.
+      - key: PAGAMENTO_SIMULACAO_HABILITADA
+        value: "true"

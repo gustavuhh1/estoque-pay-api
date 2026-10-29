@@ -8,6 +8,7 @@ import { toNodeHandler } from "better-auth/node"
 import { errorHandler } from "./shared/middlewares/error-handler"
 import routes from "./routes"
 import { auth } from "./lib/auth"
+import { opcoesDeCors } from "./lib/origens"
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -30,9 +31,7 @@ app.setNotFoundHandler((request, reply) => {
   })
 })
 
-app.register(cors, {
-  origin: true,
-})
+app.register(cors, opcoesDeCors())
 
 app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)

@@ -5,9 +5,15 @@ import { prisma } from "./prisma";
 import { sendEmail } from "./brevo";
 import { oneTap } from "better-auth/plugins";
 import { vincularConvitesPendentes } from "@/modules/equipe/service/vincularConvitesPendentes";
+import { origensConfiaveis } from "./origens";
 
 export const auth = betterAuth({
-  baseUrl: process.env.BASE_URL || "http://localhost:3000",
+  // `baseURL` (com URL maiúsculo) é o nome real da opção; o `baseUrl` que estava
+  // aqui era ignorado e valia só o BETTER_AUTH_URL do ambiente. Hospedado, esta é a
+  // URL PÚBLICA que o navegador enxerga: se o front faz proxy de /api, é a do front.
+  baseURL: process.env.BETTER_AUTH_URL || process.env.BASE_URL || "http://localhost:3333",
+  // Requisição de origem fora desta lista é recusada (CSRF), além do CORS.
+  trustedOrigins: origensConfiaveis(),
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
