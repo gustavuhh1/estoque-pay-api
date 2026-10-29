@@ -68,7 +68,7 @@ No console do Google, em credenciais OAuth, cadastre:
 ### 5. AbacatePay (modo dev)
 
 No painel da AbacatePay (modo dev), crie **um** webhook:
-- **URL:** `https://estoquepay-api.onrender.com/pagamento/webhook/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>`
+- **URL (endpoint):** `https://<api>.onrender.com/pagamento/webhook/abacatepay`, sem query. A AbacatePay acrescenta sozinha o `webhookSecret=<secret>` em cada entrega, usando o `secret` informado na criação (deve ser igual ao `ABACATEPAY_WEBHOOK_SECRET`). Dá para cadastrar por `POST https://api.abacatepay.com/v2/webhooks/create` (`name`, `endpoint`, `secret`, `events`).
 - **Eventos:** `transparent.completed` e os `subscription.*`.
 - Uma URL só serve ao Pix e à assinatura.
 
