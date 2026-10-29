@@ -311,3 +311,26 @@ export class PlanoRecursoIndisponivelError extends ConflictError {
     )
   }
 }
+
+/**
+ * RN04/#65: a loja já tem uma assinatura registrada (trial, ativa, inadimplente
+ * ou cancelada). O trial é um só por loja; contratar de novo depois de cancelar
+ * é outro fluxo, ainda não oferecido. 409 porque o corpo está certo — o conflito
+ * é com o estado da loja.
+ */
+export class AssinaturaJaExistenteError extends ConflictError {
+  constructor(status: string) {
+    super(
+      `Esta loja já tem uma assinatura registrada (status ${status}). O trial gratuito é um só por loja.`,
+      "ASSINATURA_JA_EXISTENTE",
+      { status_atual: status }
+    )
+  }
+}
+
+/** Cancelar uma assinatura que já foi cancelada. */
+export class AssinaturaJaCanceladaError extends ConflictError {
+  constructor() {
+    super("Esta assinatura já foi cancelada.", "ASSINATURA_JA_CANCELADA")
+  }
+}

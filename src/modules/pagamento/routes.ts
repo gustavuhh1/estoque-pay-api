@@ -16,6 +16,9 @@ import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepos
 import { ClienteService } from "@/modules/crm/service/ClienteService"
 import { CupomService } from "@/modules/crm/service/CupomService"
 import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { criarAssinaturaService } from "@/modules/billing/service/criarAssinaturaService"
+import { AbacatePayAssinaturaGateway } from "@/modules/billing/gateway/AbacatePayAssinaturaGateway"
+import type { IAssinaturaGateway } from "@/modules/billing/gateway/IAssinaturaGateway"
 import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
@@ -45,7 +48,10 @@ declare module "fastify" {
  * `gateway` é injetável para os testes passarem o InMemoryPagamentoGateway sem
  * chave de API e sem rede.
  */
-export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGateway()) {
+export function pagamentoRoutes(
+  gateway: IPagamentoGateway = new AbacatePayGateway(),
+  assinaturaGateway: IAssinaturaGateway = new AbacatePayAssinaturaGateway()
+) {
   return async function (app: FastifyInstance) {
     // Wiring do pagamento manual (#51). O VendaPrismaRepository recebe o
     // repositório de Estoque para a baixa rodar dentro da transação da venda.
@@ -62,7 +68,10 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
     )
     const pagamentoController = new PagamentoController(pagamentoService)
     const pixController = new PixController(pagamentoService)
-    const webhookController = new WebhookController(pagamentoService)
+    const webhookController = new WebhookController(
+      pagamentoService,
+      criarAssinaturaService(assinaturaGateway)
+    )
 
     const route = app.withTypeProvider<ZodTypeProvider>()
 

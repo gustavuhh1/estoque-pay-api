@@ -78,3 +78,25 @@ export function toAssinaturaResponse(plano: PlanoDaLoja, uso: UsoDaLoja) {
     modo_restrito: plano.plano === "FREE" && plano.status !== null && naCota,
   }
 }
+
+/**
+ * D2: assinatura só no cartão. `metodo_pagamento` existe no corpo para a regra
+ * ficar explícita e visível no /apidocs: pedir `PIX` é recusado pela validação
+ * (400), não silenciosamente trocado por cartão.
+ */
+export const iniciarAssinaturaSchema = z.object({
+  tipo_plano: z.enum(["MENSAL", "ANUAL"]),
+  metodo_pagamento: z.literal("CARTAO").default("CARTAO"),
+})
+export type IniciarAssinaturaDTO = z.infer<typeof iniciarAssinaturaSchema>
+
+export const assinaturaIniciadaResponseSchema = z.object({
+  /** `bill_...` */
+  checkout_id: z.string(),
+  /** Página da AbacatePay onde o cliente informa o cartão. Redirecione para ela. */
+  checkout_url: z.string(),
+  tipo_plano: z.enum(["MENSAL", "ANUAL"]),
+  trial_dias: z.number(),
+  /** Valor de cada ciclo, em reais. Cobrado só depois do trial. */
+  valor: z.number(),
+})
