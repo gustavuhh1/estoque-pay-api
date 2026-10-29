@@ -88,6 +88,28 @@ Se o primeiro aviso chegar com a API hibernada, o timeout de 30 s da AbacatePay 
 
 A API hiberna após 15 min parada. Para a validação em produção, "acorde" a API antes (`curl /health`) ou aceite ~1 min na primeira tela. Isso é o esperado do plano gratuito e é justamente o que o cenário "API fora do ar / cold start" testa: o front precisa mostrar a tela de erro de rede ou um carregando, em vez de quebrar.
 
+## Lojas Premium de teste (cenários 14, 15 e 16)
+
+Em modo dev não há como o avaliador pagar de verdade, então o estado da assinatura é gravado direto no banco, o mesmo resultado que o webhook da AbacatePay produziria:
+
+```bash
+DATABASE_URL="<conexão direta do Neon>" npx tsx scripts/premium-teste.ts --confirmar
+```
+
+Cria (ou recoloca no estado de partida) o usuário `premium-teste@exemplo.com` com três lojas dele:
+
+| Loja | Assinatura | Switch NFC-e | Para o cenário |
+| --- | --- | --- | --- |
+| Loja Premium Trial | `TRIALING`, trial de 7 dias | ligado | 14 |
+| Loja Premium Inadimplente | `PAST_DUE` | desligado (como o webhook deixa) | 15 |
+| Loja Premium Ativa | `ACTIVE` mensal | ligado | 16 |
+
+O script imprime o id de cada loja e a senha de teste. Rodar de novo restaura as três, útil depois de gastar o trial ou de testar a inadimplência.
+
+## Região do banco: fica junto da API
+
+A Render (plano grátis) não tem região em São Paulo; a API está em `virginia`. Cada requisição faz várias consultas ao banco, então o Neon deve ficar na **mesma região da API** (`aws-us-east-1`), não perto de quem usa o sistema. Um banco em São Paulo com a API em Virginia soma ~120 ms por consulta.
+
 ## Segredos
 
 Ficam **só** nos painéis (Render, Neon, Vercel). O `.env` está no `.gitignore` e o `render.yaml` só tem os nomes das variáveis.
