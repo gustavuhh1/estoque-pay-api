@@ -16,6 +16,7 @@ import { CupomPrismaRepository } from "@/modules/crm/repository/CupomPrismaRepos
 import { ClienteService } from "@/modules/crm/service/ClienteService"
 import { CupomService } from "@/modules/crm/service/CupomService"
 import { PagamentoService } from "../service/PagamentoService"
+import { InMemoryPagamentoGateway } from "../gateway/InMemoryPagamentoGateway"
 
 const CNPJ_VALIDO = "11222333000181"
 
@@ -59,7 +60,8 @@ describe("PagamentoService.registrarPagamentoManual (#51 — RF02.1/RF02.2/RNF01
       new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
       caixaRepository,
       new ClienteService(clienteRepository),
-      new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
+      new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
+      new InMemoryPagamentoGateway()
     )
   })
 
@@ -253,5 +255,122 @@ describe("PagamentoService.registrarPagamentoManual (#51 — RF02.1/RF02.2/RNF01
         metodo_pagamento: "DEBITO",
       })
     ).rejects.toMatchObject({ code: "PRODUTO_INATIVO" })
+  })
+})
+
+describe("PagamentoService — Pix (#52, #79, D1)", () => {
+  let sut: PagamentoService
+  let gateway: InMemoryPagamentoGateway
+  let caixaRepository: CaixaPrismaRepository
+
+  beforeEach(() => {
+    const estoqueRepository = new EstoquePrismaRepository(prisma)
+    const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
+    caixaRepository = new CaixaPrismaRepository(prisma)
+    const clienteRepository = new ClientePrismaRepository(prisma)
+    gateway = new InMemoryPagamentoGateway()
+    sut = new PagamentoService(
+      vendaRepository,
+      new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
+      caixaRepository,
+      new ClienteService(clienteRepository),
+      new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
+      gateway
+    )
+  })
+
+  async function cenario() {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    await caixaRepository.abrir({
+      estabelecimento_id: loja.id,
+      aberto_por_id: usuario.id,
+      valor_abertura: 200,
+    })
+    return { loja, usuario }
+  }
+
+  it("cobra itens + R$ 0,80 e grava a taxa em taxa_split, sem somá-la ao total_venda", async () => {
+    const { loja, usuario } = await cenario()
+    const produto = await criarProduto(loja.id, { preco_venda: 10 })
+
+    const resultado = await sut.registrarPagamentoPix(loja.id, usuario.id, {
+      itens: [{ produto_id: produto.id, quantidade: 2 }],
+    })
+
+    expect(resultado.total_cobrado).toBe(20.8)
+    expect(resultado.taxa_pix).toBe(0.8)
+    expect(Number(resultado.venda.total_venda)).toBe(20)
+    expect(Number(resultado.venda.taxa_split)).toBe(0.8)
+    expect(resultado.venda.status_pagamento).toBe("PENDENTE")
+    expect(gateway.cobrancas[0]?.valor).toBe(20.8)
+  })
+
+  it("dinheiro e cartão NÃO levam a taxa", async () => {
+    const { loja, usuario } = await cenario()
+    const produto = await criarProduto(loja.id, { preco_venda: 10 })
+
+    const { venda } = await sut.registrarPagamentoManual(loja.id, usuario.id, {
+      itens: [{ produto_id: produto.id, quantidade: 1 }],
+      metodo_pagamento: "DEBITO",
+    })
+
+    expect(venda.taxa_split).toBeNull()
+    expect(Number(venda.total_venda)).toBe(10)
+  })
+
+  it("exige turno aberto", async () => {
+    const loja = await criarEstabelecimento()
+    const usuario = await criarUsuario()
+    const produto = await criarProduto(loja.id)
+
+    await expect(
+      sut.registrarPagamentoPix(loja.id, usuario.id, {
+        itens: [{ produto_id: produto.id, quantidade: 1 }],
+      })
+    ).rejects.toBeInstanceOf(TurnoFechadoError)
+    expect(gateway.cobrancas).toHaveLength(0)
+  })
+
+  it("consolidação sem saldo: a transação volta atrás e a venda continua PENDENTE", async () => {
+    // O estoque pode acabar entre o QR Code e o pagamento. A consolidação é
+    // atômica (RNF01): nada de venda PAGA sem a baixa correspondente.
+    const { loja, usuario } = await cenario()
+    const produto = await criarProduto(loja.id, { preco_venda: 10, quantidade_atual: 5 })
+    const { venda, cobranca } = await sut.registrarPagamentoPix(loja.id, usuario.id, {
+      itens: [{ produto_id: produto.id, quantidade: 3 }],
+    })
+    // Outra venda esvazia o produto antes de o Pix cair.
+    await prisma.produto.update({ where: { id: produto.id }, data: { quantidade_atual: 1 } })
+    gateway.definirStatus(cobranca.payment_id, "PAID")
+
+    await expect(sut.consultarPix(loja.id, cobranca.payment_id)).rejects.toBeInstanceOf(
+      EstoqueInsuficienteError
+    )
+
+    const noBanco = await prisma.venda.findUniqueOrThrow({ where: { id: venda.id } })
+    expect(noBanco.status_pagamento).toBe("PENDENTE")
+    expect(noBanco.pago_em).toBeNull()
+    expect(await prisma.movimentacaoEstoque.count()).toBe(0)
+  })
+
+  it("confirmarPixPorWebhook consulta o provedor e devolve processado só na 1ª vez", async () => {
+    const { loja, usuario } = await cenario()
+    const produto = await criarProduto(loja.id)
+    const { cobranca } = await sut.registrarPagamentoPix(loja.id, usuario.id, {
+      itens: [{ produto_id: produto.id, quantidade: 1 }],
+    })
+
+    expect(await sut.confirmarPixPorWebhook([cobranca.payment_id])).toEqual({
+      processado: false,
+    })
+
+    gateway.definirStatus(cobranca.payment_id, "PAID")
+    expect(await sut.confirmarPixPorWebhook(["pix_char_desconhecido", cobranca.payment_id])).toEqual({
+      processado: true,
+    })
+    expect(await sut.confirmarPixPorWebhook([cobranca.payment_id])).toEqual({
+      processado: false,
+    })
   })
 })

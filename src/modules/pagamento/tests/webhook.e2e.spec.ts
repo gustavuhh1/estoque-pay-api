@@ -14,6 +14,8 @@ import { app } from "@/app"
  * .gitignore e não chegaria em quem clona o repo).
  */
 const SEGREDO = "segredo-de-webhook-de-teste"
+// #79: a mesma variável vale para a query (?webhookSecret=) e para o HMAC.
+const SEGREDO_QUERY = SEGREDO
 
 function assinar(corpo: string, segredo = SEGREDO) {
   return crypto.createHmac("sha256", segredo).update(Buffer.from(corpo, "utf8")).digest("base64")
@@ -29,10 +31,16 @@ function corpoDe(event: string, data: Record<string, unknown> = {}) {
   })
 }
 
-async function enviar(corpo: string, assinatura?: string) {
+async function enviar(
+  corpo: string,
+  assinatura?: string,
+  segredoQuery: string | null = SEGREDO_QUERY
+) {
+  const query = segredoQuery === null ? "" : `?webhookSecret=${encodeURIComponent(segredoQuery)}`
+
   return app.inject({
     method: "POST",
-    url: "/pagamento/webhook/abacatepay",
+    url: `/pagamento/webhook/abacatepay${query}`,
     headers: {
       "content-type": "application/json",
       ...(assinatura !== undefined && { "x-webhook-signature": assinatura }),
@@ -58,6 +66,34 @@ describe("POST /pagamento/webhook/abacatepay - E2E (#52)", () => {
 
     expect(response.statusCode).toBe(401)
     expect(response.json().code).toBe("WEBHOOK_ASSINATURA_INVALIDA")
+  })
+
+  it("401 — sem o webhookSecret na query, mesmo com HMAC válido (#79)", async () => {
+    const corpo = corpoDe("transparent.completed", { id: "pix_char_abc" })
+
+    const response = await enviar(corpo, assinar(corpo), null)
+
+    expect(response.statusCode).toBe(401)
+    expect(response.json().code).toBe("WEBHOOK_ASSINATURA_INVALIDA")
+  })
+
+  it("401 — webhookSecret errado na query, mesmo com HMAC válido (#79)", async () => {
+    const corpo = corpoDe("transparent.completed", { id: "pix_char_abc" })
+
+    const response = await enviar(corpo, assinar(corpo), "segredo-do-atacante")
+
+    expect(response.statusCode).toBe(401)
+  })
+
+  it("200 — id que não é de nenhuma venda nossa não vira 404 nem erro (#79)", async () => {
+    // Pode ser cobrança de outro sistema na mesma conta. Responder erro faria o
+    // provedor reenviar para sempre.
+    const corpo = corpoDe("transparent.completed", { id: "pix_char_de_outro_sistema" })
+
+    const response = await enviar(corpo, assinar(corpo))
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ recebido: true, processado: false })
   })
 
   it("401 — sem o header de assinatura", async () => {
