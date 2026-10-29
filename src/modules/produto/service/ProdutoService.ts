@@ -1,13 +1,15 @@
 import { Prisma, type Role } from "../../../../generated/prisma/client.js"
 import { EanGtinAlreadyInUseError, ForbiddenError, NotFoundError } from "@/shared/errors"
 import type { IEstabelecimentoRepository } from "@/modules/estabelecimento/repository/IEstabelecimentoRepository"
+import type { PlanoService } from "@/modules/billing/service/PlanoService"
 import type { CreateProdutoDTO, UpdateProdutoDTO } from "../dto/produto.dto"
 import type { IProdutoRepository } from "../repository/IProdutoRepository"
 
 export class ProdutoService {
   constructor(
     private produtoRepository: IProdutoRepository,
-    private estabelecimentoRepository: IEstabelecimentoRepository
+    private estabelecimentoRepository: IEstabelecimentoRepository,
+    private planoService: PlanoService
   ) {}
 
   /**
@@ -56,6 +58,12 @@ export class ProdutoService {
       data.ncm,
       data.cfop
     )
+
+    // RN01 (Fase 5): produto que nasce INATIVO (RN09.1) não ocupa vaga do
+    // limite do Free; só o que nasce ativo conta.
+    if (!forcarInativo) {
+      await this.planoService.garantirPodeAtivarProduto(estabelecimentoId)
+    }
 
     try {
       return await this.produtoRepository.create({
@@ -202,6 +210,12 @@ export class ProdutoService {
         "Não é possível reativar: produto sem NCM/CFOP com a emissão de NFC-e ativada nesta loja.",
         "PRODUTO_SEM_CONFORMIDADE_FISCAL"
       )
+    }
+
+    // RN01 (Fase 5): reativar ocupa uma vaga do limite do Free. Reativar quem
+    // já está ativo é no-op e não pode se contar duas vezes.
+    if (!produto.ativo) {
+      await this.planoService.garantirPodeAtivarProduto(estabelecimentoId)
     }
 
     return this.produtoRepository.update(id, { ativo: true })

@@ -6,6 +6,8 @@ import { EquipePrismaRepository } from "./repository/EquipePrismaRepository"
 import { ConvitePrismaRepository } from "./repository/ConvitePrismaRepository"
 import { AuthPrismaRepository } from "@/modules/auth/repository/AuthPrismaRepository"
 import { EstabelecimentoPrismaRepository } from "@/modules/estabelecimento/repository/EstabelecimentoPrismaRepository"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -34,7 +36,8 @@ export async function equipeRoutes(app: FastifyInstance) {
     equipeRepository,
     conviteRepository,
     authRepository,
-    estabelecimentoRepository
+    estabelecimentoRepository,
+    new PlanoService(new PlanoPrismaRepository(prisma))
   )
 
   // 3. Instanciar Controller (Presentation)

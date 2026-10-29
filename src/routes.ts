@@ -8,6 +8,7 @@ import { caixaRoutes } from "@/modules/caixa/routes"
 import { pagamentoRoutes } from "@/modules/pagamento/routes"
 import { vendaRoutes } from "@/modules/venda/routes"
 import { crmRoutes } from "@/modules/crm/routes"
+import { billingRoutes } from "@/modules/billing/routes"
 import type { FastifyInstance } from "fastify"
 
 export default async function routes(app: FastifyInstance) {
@@ -21,6 +22,7 @@ export default async function routes(app: FastifyInstance) {
   app.register(vendaRoutes, { prefix: "/venda" })
   app.register(pagamentoRoutes(), { prefix: "/pagamento" })
   app.register(crmRoutes, { prefix: "/crm" })
+  app.register(billingRoutes, { prefix: "/billing" })
   // app.register(pdvRoutes, { prefix: "/pdv" })
   // app.register(nfceRoutes, { prefix: "/nfce" })
 }

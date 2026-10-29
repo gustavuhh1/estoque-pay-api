@@ -4,6 +4,8 @@ import { ProdutoController } from "./controller/ProdutoController"
 import { ProdutoService } from "./service/ProdutoService"
 import { ProdutoPrismaRepository } from "./repository/ProdutoPrismaRepository"
 import { EstabelecimentoPrismaRepository } from "@/modules/estabelecimento/repository/EstabelecimentoPrismaRepository"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -30,7 +32,11 @@ export async function produtoRoutes(app: FastifyInstance) {
   const estabelecimentoRepository = new EstabelecimentoPrismaRepository(prisma)
 
   // 2. Instanciar Service (Application)
-  const produtoService = new ProdutoService(produtoRepository, estabelecimentoRepository)
+  const produtoService = new ProdutoService(
+    produtoRepository,
+    estabelecimentoRepository,
+    new PlanoService(new PlanoPrismaRepository(prisma))
+  )
 
   // 3. Instanciar Controller (Presentation)
   const produtoController = new ProdutoController(produtoService)

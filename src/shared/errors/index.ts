@@ -279,3 +279,35 @@ export class EstoqueInsuficienteError extends ConflictError {
     )
   }
 }
+
+/**
+ * RN01 (Fase 5): o plano Free tem teto de produtos ativos e de membros. É 409
+ * e não 403 pelo mesmo motivo do NFCE_PRE_CHECK_REPROVADO: quem pede tem
+ * permissão, o que bloqueia é o estado da loja — inativando um produto, saindo
+ * um membro ou assinando o Premium, a mesma requisição passa.
+ *
+ * Vale também no modo restrito (RN03): loja rebaixada acima do limite não perde
+ * o que já tem, só não cadastra mais.
+ */
+export class PlanoLimiteExcedidoError extends ConflictError {
+  constructor(recurso: "PRODUTOS" | "MEMBROS", limite: number, atual: number) {
+    super(
+      recurso === "PRODUTOS"
+        ? `O plano Free permite no máximo ${limite} produtos ativos (esta loja tem ${atual}). Inative algum produto ou assine o Premium.`
+        : `O plano Free permite no máximo ${limite} membros na equipe, contando o Owner (esta loja tem ${atual}). Remova alguém ou assine o Premium.`,
+      `PLANO_LIMITE_${recurso}`,
+      { limite, atual }
+    )
+  }
+}
+
+/** RN01 (Fase 5): recurso que só existe no Premium (ex.: campos completos do CRM). */
+export class PlanoRecursoIndisponivelError extends ConflictError {
+  constructor(recurso: string, campos: string[]) {
+    super(
+      `${recurso} não está disponível no plano Free: ${campos.join(", ")}. Assine o Premium para usar.`,
+      "PLANO_RECURSO_PREMIUM",
+      { campos }
+    )
+  }
+}

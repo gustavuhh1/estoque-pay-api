@@ -1,5 +1,6 @@
 import { Prisma, type Cliente } from "../../../../generated/prisma/client.js"
 import { ClienteCpfAlreadyInUseError, NotFoundError } from "@/shared/errors"
+import type { PlanoService } from "@/modules/billing/service/PlanoService"
 import type {
   CreateClienteDTO,
   EstatisticasCliente,
@@ -22,10 +23,16 @@ import type {
  * requireTenant.
  */
 export class ClienteService {
-  constructor(private clienteRepository: IClienteRepository) {}
+  constructor(
+    private clienteRepository: IClienteRepository,
+    private planoService: PlanoService
+  ) {}
 
   /** RF01.1 */
   async create(estabelecimentoId: string, data: CreateClienteDTO): Promise<Cliente> {
+    // RN01 (Fase 5): no Free o cliente só tem CPF e Nome.
+    await this.planoService.garantirCamposDoCrm(estabelecimentoId, data)
+
     if (await this.clienteRepository.existsCpf(estabelecimentoId, data.cpf)) {
       throw new ClienteCpfAlreadyInUseError()
     }
@@ -85,6 +92,10 @@ export class ClienteService {
     data: UpdateClienteDTO
   ): Promise<Cliente> {
     await this.findById(id, estabelecimentoId)
+
+    // Limpar um campo (null) sempre passa: quem foi rebaixado ainda pode apagar
+    // o que tinha. Só PREENCHER é bloqueado no Free.
+    await this.planoService.garantirCamposDoCrm(estabelecimentoId, data)
 
     if (
       data.cpf &&

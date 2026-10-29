@@ -6,6 +6,8 @@ import { ClienteService } from "./service/ClienteService"
 import { CupomService } from "./service/CupomService"
 import { ClientePrismaRepository } from "./repository/ClientePrismaRepository"
 import { CupomPrismaRepository } from "./repository/CupomPrismaRepository"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -43,7 +45,8 @@ export async function crmRoutes(app: FastifyInstance) {
   const cupomRepository = new CupomPrismaRepository(prisma)
 
   // 2. Instanciar Services (Application)
-  const clienteService = new ClienteService(clienteRepository)
+  const planoService = new PlanoService(new PlanoPrismaRepository(prisma))
+  const clienteService = new ClienteService(clienteRepository, planoService)
   const cupomService = new CupomService(cupomRepository, clienteRepository)
 
   // 3. Instanciar Controllers (Presentation)
