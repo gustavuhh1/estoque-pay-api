@@ -19,7 +19,11 @@ export class InMemoryPagamentoGateway implements IPagamentoGateway {
   /** Cobranças criadas, para os testes inspecionarem o que foi pedido. */
   public readonly cobrancas: Array<CriarCobrancaPixParams & { payment_id: string }> = []
 
-  constructor(private readonly webhookSecret = "segredo-de-teste") {}
+  constructor(
+    private readonly webhookSecret = "segredo-de-teste",
+    /** O que a rota espera em `?webhookSecret=`. */
+    public readonly segredoQuery = "segredo-de-query-de-teste"
+  ) {}
 
   /** Status por payment_id, para os testes controlarem o ciclo da cobrança. */
   private readonly status = new Map<string, StatusCobranca>()
@@ -34,7 +38,7 @@ export class InMemoryPagamentoGateway implements IPagamentoGateway {
       qr_code: "00020160014BR.GOV.BCB.PIX070503***6304ABCD",
       qr_code_imagem: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==",
       expira_em: new Date(Date.now() + params.expira_em_segundos * 1000),
-      taxa_plataforma: 0.8,
+      taxa_plataforma: 0.03,
     }
   }
 
@@ -77,6 +81,15 @@ export class InMemoryPagamentoGateway implements IPagamentoGateway {
 
     const a = Buffer.from(esperada)
     const b = Buffer.from(assinatura)
+
+    return a.length === b.length && crypto.timingSafeEqual(a, b)
+  }
+
+  verificarSegredoWebhook(segredo: string | undefined): boolean {
+    if (!segredo) return false
+
+    const a = Buffer.from(this.segredoQuery)
+    const b = Buffer.from(segredo)
 
     return a.length === b.length && crypto.timingSafeEqual(a, b)
   }

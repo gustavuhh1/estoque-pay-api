@@ -22,7 +22,12 @@ import { UnauthorizedError } from "@/shared/errors"
 import { errorResponseSchema } from "@/shared/errors/schema"
 import { webhookAbacatePaySchema, webhookResponseSchema } from "./dto/webhook.dto"
 import { paymentIdParamsSchema, statusCobrancaResponseSchema } from "./dto/pix.dto"
-import { pagamentoResponseSchema, registrarPagamentoSchema } from "./dto/pagamento.dto"
+import {
+  iniciarPagamentoPixSchema,
+  pagamentoPixResponseSchema,
+  pagamentoResponseSchema,
+  registrarPagamentoSchema,
+} from "./dto/pagamento.dto"
 
 // Mesmo padrão de augmentation inline dos middlewares (o tsconfig usa `types: []`).
 declare module "fastify" {
@@ -40,23 +45,22 @@ declare module "fastify" {
  */
 export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGateway()) {
   return async function (app: FastifyInstance) {
-    const webhookController = new WebhookController()
-    const pixController = new PixController(gateway)
-
     // Wiring do pagamento manual (#51). O VendaPrismaRepository recebe o
     // repositório de Estoque para a baixa rodar dentro da transação da venda.
     const estoqueRepository = new EstoquePrismaRepository(prisma)
     const vendaRepository = new VendaPrismaRepository(prisma, estoqueRepository)
     const clienteRepository = new ClientePrismaRepository(prisma)
-    const pagamentoController = new PagamentoController(
-      new PagamentoService(
-        vendaRepository,
-        new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
-        new CaixaPrismaRepository(prisma),
-        new ClienteService(clienteRepository),
-        new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
-      )
+    const pagamentoService = new PagamentoService(
+      vendaRepository,
+      new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository),
+      new CaixaPrismaRepository(prisma),
+      new ClienteService(clienteRepository),
+      new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
+      gateway
     )
+    const pagamentoController = new PagamentoController(pagamentoService)
+    const pixController = new PixController(pagamentoService)
+    const webhookController = new WebhookController(pagamentoService)
 
     const route = app.withTypeProvider<ZodTypeProvider>()
 
@@ -90,6 +94,36 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
       async (req, res) => pagamentoController.registrar(req, res)
     )
 
+    route.post(
+      "/pix",
+      {
+        preHandler: [requireAuth, requireTenant],
+        schema: {
+          tags: ["Pagamento"],
+          summary: "Inicia um pagamento Pix: cria a venda PENDENTE e o QR Code",
+          description:
+            "RF03.1 + **D1**. Requer o header `x-estabelecimento-id`. Cria a venda como `PENDENTE` e gera o QR Code na AbacatePay. **O consumidor paga `total_venda + taxa_pix` (R$ 0,80)**: a taxa é só do Pix, fica gravada em `Venda.taxa_split` e `total_cobrado` é o valor do QR. **Nada de estoque aqui (RN01)**: a baixa acontece quando o pagamento é confirmado, por polling (`GET /pagamento/pix/:payment_id/status`) ou webhook, na mesma transação que marca a venda como `PAGO`. Exige **turno aberto** (409 se fechado). Preços relidos do banco. `cupom_codigo` é consumido já na criação (dois Pix simultâneos não usam o mesmo cupom) e volta se o QR Code expirar sem pagamento. Qualquer cargo pode vender, inclusive Caixa.",
+          security: [{ cookieAuth: [] }],
+          body: iniciarPagamentoPixSchema,
+          response: {
+            201: pagamentoPixResponseSchema,
+            400: errorResponseSchema.describe(
+              "Dados inválidos (code: VALIDATION_ERROR), header de tenant ausente ou recusa do provedor (code: GATEWAY_PAGAMENTO_ERRO)"
+            ),
+            401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+            403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+            404: errorResponseSchema.describe(
+              "Produto (code: PRODUTO_NAO_ENCONTRADO | PRODUTO_INATIVO), cliente (code: CLIENTE_NAO_ENCONTRADO) ou cupom (code: CUPOM_NAO_ENCONTRADO) inexistente nesta loja"
+            ),
+            409: errorResponseSchema.describe(
+              "Caixa fechado (code: TURNO_FECHADO) ou cupom indisponível (code: CUPOM_JA_RESGATADO | CUPOM_EXPIRADO | CUPOM_DE_OUTRO_CLIENTE)"
+            ),
+          },
+        },
+      },
+      async (req, res) => pixController.iniciar(req, res)
+    )
+
     route.get(
       "/pix/:payment_id/status",
       {
@@ -98,7 +132,7 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
           tags: ["Pagamento"],
           summary: "Consulta o status de uma cobrança Pix (polling)",
           description:
-            "Requer o header `x-estabelecimento-id`. Enquanto o webhook não estiver configurado, é assim que o PDV descobre que o Pix caiu: o cliente está no balcão e o caixa consulta a cada poucos segundos até `pago: true`. **Limite**: se o caixa fechar a tela antes do cliente pagar, ninguém consulta mais e a venda trava em PENDENTE — cobrir esse caso é o papel do webhook (issue própria).",
+            "Requer o header `x-estabelecimento-id`. É assim que o PDV descobre que o Pix caiu: o cliente está no balcão e o caixa consulta a cada poucos segundos até `pago: true`. **A consulta também consolida**: quando o provedor confirma o pagamento, a venda vira `PAGO` e o estoque baixa na mesma transação (idempotente: consultar de novo não baixa outra vez). Cobrança expirada ou cancelada vira venda `CANCELADO` e devolve o cupom. A cobrança precisa ser **desta loja** (404 `COBRANCA_NAO_ENCONTRADA` caso contrário). **Limite**: se o caixa fechar a tela antes do cliente pagar, ninguém consulta mais; o webhook cobre esse caso.",
           security: [{ cookieAuth: [] }],
           params: paymentIdParamsSchema,
           response: {
@@ -108,6 +142,9 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
             ),
             401: errorResponseSchema.describe("Sessão ausente ou inválida"),
             403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+            404: errorResponseSchema.describe(
+              "Cobrança inexistente nesta loja (code: COBRANCA_NAO_ENCONTRADA)"
+            ),
           },
         },
       },
@@ -133,8 +170,17 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
      *      de esquecer num merge; trava de código não);
      *   3. a própria AbacatePay, que recusa este endpoint com chave de
      *      produção — "only works with sandbox API keys".
+     *
+     * EXCEÇÃO EXPLÍCITA: o projeto roda a AbacatePay em modo Dev também no
+     * ambiente hospedado (NODE_ENV=production), e a validação em produção
+     * precisa simular o Pix. `PAGAMENTO_SIMULACAO_HABILITADA=true` religa a
+     * rota nesse caso. É opt-in, vem desligada, e a camada 3 continua valendo:
+     * com chave de produção a AbacatePay recusa. NUNCA ligar com chave real.
      * ════════════════════════════════════════════════════════════════════════ */
-    if (process.env.NODE_ENV !== "production") {
+    if (
+      process.env.NODE_ENV !== "production" ||
+      process.env.PAGAMENTO_SIMULACAO_HABILITADA === "true"
+    ) {
       route.post(
         "/pix/:payment_id/simular-pagamento",
         {
@@ -212,6 +258,19 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
           )
         }
 
+        const { webhookSecret } = request.query as { webhookSecret?: unknown }
+
+        if (
+          !gateway.verificarSegredoWebhook(
+            typeof webhookSecret === "string" ? webhookSecret : undefined
+          )
+        ) {
+          throw new UnauthorizedError(
+            "Segredo do webhook inválido.",
+            "WEBHOOK_ASSINATURA_INVALIDA"
+          )
+        }
+
         const assinatura = request.headers["x-webhook-signature"]
         const valida = gateway.verificarAssinaturaWebhook(
           request.rawBody,
@@ -235,7 +294,7 @@ export function pagamentoRoutes(gateway: IPagamentoGateway = new AbacatePayGatew
             tags: ["Pagamento"],
             summary: "Recebe as notificações de pagamento da AbacatePay",
             description:
-              "RNF02. **Rota pública**: não exige sessão nem header de loja. A autenticação é a assinatura HMAC-SHA256 do corpo cru, enviada pelo provedor no header `X-Webhook-Signature` em base64. Assinatura ausente ou inválida devolve 401. Eventos que não consolidam venda devolvem 200 com `processado: false` — responder erro faria o provedor reenviar indefinidamente.",
+              "RNF02/#79. **Rota pública**: não exige sessão nem header de loja. A origem é provada por **duas camadas**: o `?webhookSecret=` da URL cadastrada na AbacatePay e a assinatura HMAC-SHA256 do corpo cru, enviada no header `X-Webhook-Signature` em base64. Qualquer uma ausente ou inválida devolve 401. O evento `transparent.completed` é só o **gatilho**: a venda só vira `PAGO` se a AbacatePay confirmar o pagamento numa consulta direta, e a baixa de estoque roda uma única vez mesmo se o provedor reenviar o evento (`processado: true` só na chamada que consolidou). Eventos que não consolidam venda, ids desconhecidos e reenvios devolvem 200 com `processado: false`: responder erro faria o provedor reenviar indefinidamente.",
             body: webhookAbacatePaySchema,
             response: {
               200: webhookResponseSchema,

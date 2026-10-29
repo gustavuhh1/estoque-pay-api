@@ -37,7 +37,11 @@ export interface CobrancaPixCriada {
   /** `brCodeBase64`: data URI da imagem do QR Code. */
   qr_code_imagem: string
   expira_em: Date
-  /** Taxa retida pela plataforma, em reais. Null quando o provedor não informa. */
+  /**
+   * `platformFee` do provedor: a tarifa que a PRÓPRIA AbacatePay desconta, em
+   * reais. Não é a taxa de R$ 0,80 do EstoquePay (essa é `TAXA_PIX_REAIS`).
+   * Null quando o provedor não informa.
+   */
   taxa_plataforma: number | null
 }
 
@@ -90,4 +94,9 @@ export interface IPagamentoGateway {
    * o que faria a verificação falhar sempre.
    */
   verificarAssinaturaWebhook(corpoCru: Buffer, assinatura: string | undefined): boolean
+  /**
+   * #79: o segredo que o provedor manda na query string (`?webhookSecret=`) de
+   * cada entrega. É a segunda camada, somada ao HMAC do corpo.
+   */
+  verificarSegredoWebhook(segredo: string | undefined): boolean
 }
