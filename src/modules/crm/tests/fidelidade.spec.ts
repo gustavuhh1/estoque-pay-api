@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import {
   CupomCodigoAlreadyInUseError,
@@ -72,7 +74,7 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
     const clienteRepository = new ClientePrismaRepository(prisma)
     caixaRepository = new CaixaPrismaRepository(prisma)
 
-    clienteService = new ClienteService(clienteRepository)
+    clienteService = new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma)))
     cupomService = new CupomService(new CupomPrismaRepository(prisma), clienteRepository)
     vendaService = new VendaService(new ProdutoPrismaRepository(prisma), vendaRepository)
     pagamentoService = new PagamentoService(

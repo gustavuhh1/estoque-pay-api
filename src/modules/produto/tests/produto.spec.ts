@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
 import { EanGtinAlreadyInUseError, ForbiddenError, NotFoundError } from "@/shared/errors"
 import { EstabelecimentoPrismaRepository } from "@/modules/estabelecimento/repository/EstabelecimentoPrismaRepository"
@@ -86,7 +88,8 @@ describe("ProdutoService", () => {
   beforeEach(() => {
     sut = new ProdutoService(
       new ProdutoPrismaRepository(prisma),
-      new EstabelecimentoPrismaRepository(prisma)
+      new EstabelecimentoPrismaRepository(prisma),
+      new PlanoService(new PlanoPrismaRepository(prisma))
     )
   })
 

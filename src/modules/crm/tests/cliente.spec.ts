@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "node:crypto"
+import { PlanoService } from "@/modules/billing/service/PlanoService"
+import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { prisma } from "@/lib/prisma"
+import { criarAssinatura } from "@/shared/tests/assinatura"
 import { ClienteCpfAlreadyInUseError, NotFoundError } from "@/shared/errors"
 import { createClienteSchema } from "../dto/cliente.dto"
 import { ClientePrismaRepository } from "../repository/ClientePrismaRepository"
@@ -11,8 +14,18 @@ const OUTRO_CNPJ_VALIDO = "11444777000161"
 const CPF_VALIDO = "52998224725"
 const OUTRO_CPF_VALIDO = "11144477735"
 
-async function criarEstabelecimento(cnpj = CNPJ_VALIDO) {
-  return prisma.estabelecimento.create({ data: { nome: "Loja de Teste", cnpj } })
+/**
+ * Premium por padrão: estes testes cobrem o CRUD de clientes, e o Free só guarda
+ * CPF e Nome (RN01 da Fase 5, testada à parte em `cliente-plano.spec.ts`).
+ */
+async function criarEstabelecimento(cnpj = CNPJ_VALIDO, premium = true) {
+  const loja = await prisma.estabelecimento.create({ data: { nome: "Loja de Teste", cnpj } })
+
+  if (premium) {
+    await criarAssinatura(loja.id)
+  }
+
+  return loja
 }
 
 async function criarClienteDireto(
@@ -71,7 +84,7 @@ describe("ClienteService (#57 — RF01.1 a RF01.4)", () => {
   let sut: ClienteService
 
   beforeEach(() => {
-    sut = new ClienteService(new ClientePrismaRepository(prisma))
+    sut = new ClienteService(new ClientePrismaRepository(prisma), new PlanoService(new PlanoPrismaRepository(prisma)))
   })
 
   describe("create (RF01.1)", () => {
