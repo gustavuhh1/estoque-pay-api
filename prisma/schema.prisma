@@ -86,6 +86,8 @@ model Estabelecimento {
   certificado_a1       String? // URL/Caminho do certificado
   certificado_a1_senha String? // Sempre criptografado na aplicação, nunca em texto puro
   emite_nfce           Boolean  @default(false) // Switch fiscal: dita a obrigatoriedade de NCM/CFOP
+  // Último número de NFC-e simulada emitido (D3). Contador atômico por loja: o próximo é este + 1.
+  nfce_ultimo_numero   Int      @default(0)
   criado_em            DateTime @default(now())
 
   // O plano NÃO é coluna: é derivado de assinatura.status para não haver duas
@@ -102,6 +104,7 @@ model Estabelecimento {
   movimentacoes MovimentacaoEstoque[]
   cupons        Cupom[]
   assinatura    Assinatura?
+  convites      ConviteFuncionario[]
 
   @@map("estabelecimentos")
 }
@@ -137,10 +140,12 @@ model User {
 
   estabelecimentos MembroEstabelecimento[]
 
-  turnos            TurnoCaixa[]
+  turnos_abertos    TurnoCaixa[]          @relation("TurnosAbertos")
+  turnos_fechados   TurnoCaixa[]          @relation("TurnosFechados")
   vendas            Venda[]               @relation("VendasOperador")
   vendas_canceladas Venda[]               @relation("VendasCanceladas")
   movimentacoes     MovimentacaoEstoque[] // Relacionamento com a auditoria de estoque
+  convites_criados  ConviteFuncionario[]
 
   @@unique([email])
   @@map("user")
@@ -163,6 +168,32 @@ model MembroEstabelecimento {
   @@index([userId])
   @@index([estabelecimentoId])
   @@map("membros_estabelecimento")
+}
+
+/**
+ * Convite de funcionário (#41): quando o Owner/Gestor cadastra um e-mail que
+ * ainda não tem conta na plataforma, o vínculo não pode ser criado na hora
+ * (MembroEstabelecimento.userId é obrigatório) — este registro fica pendente
+ * até a pessoa se cadastrar (e-mail/senha ou Google) com o mesmo e-mail. O
+ * hook `databaseHooks.user.create.after` (src/lib/auth.ts) consome os
+ * convites pendentes e cria o(s) MembroEstabelecimento na hora do cadastro.
+ */
+model ConviteFuncionario {
+  id                String    @id @default(uuid())
+  email             String
+  estabelecimentoId String
+  role              Role
+  criadoPorId       String
+  createdAt         DateTime  @default(now())
+  aceitoEm          DateTime?
+
+  estabelecimento Estabelecimento @relation(fields: [estabelecimentoId], references: [id], onDelete: Cascade)
+  criadoPor       User            @relation(fields: [criadoPorId], references: [id], onDelete: Cascade)
+
+  // Um convite pendente por e-mail/loja: reenviar apenas atualiza o existente.
+  @@unique([email, estabelecimentoId])
+  @@index([email])
+  @@map("convites_funcionario")
 }
 
 model Session {
@@ -328,10 +359,20 @@ model MovimentacaoEstoque {
 
 // Módulo: PDV & Vendas
 
+/// Um turno ABERTO por LOJA de cada vez (não por pessoa): o turno representa
+/// "o caixa da loja está aberto", amarrado ao dia de funcionamento. Qualquer
+/// cargo abre e fecha — inclusive CASHIER —, e quem fecha pode ser diferente de
+/// quem abriu, por isso as duas pontas são registradas.
+///
+/// A trava de "um aberto por loja" é um índice único PARCIAL criado em SQL puro
+/// na migration `turno_caixa_abertura_fechamento` (o Prisma não declara índice
+/// único condicional no schema). Sem ela, dois cliques simultâneos em "abrir
+/// caixa" passariam os dois por uma verificação feita apenas no service.
 model TurnoCaixa {
   id                 String      @id @default(uuid())
   estabelecimento_id String
-  usuario_id         String
+  aberto_por_id      String
+  fechado_por_id     String?
   valor_abertura     Decimal     @db.Decimal(10, 2)
   valor_fechamento   Decimal?    @db.Decimal(10, 2)
   status             StatusTurno @default(ABERTO)
@@ -339,11 +380,13 @@ model TurnoCaixa {
   fechado_em         DateTime?
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
-  users           User            @relation(fields: [usuario_id], references: [id])
+  aberto_por      User            @relation("TurnosAbertos", fields: [aberto_por_id], references: [id])
+  fechado_por     User?           @relation("TurnosFechados", fields: [fechado_por_id], references: [id])
   vendas          Venda[]
 
   @@index([estabelecimento_id, status])
-  @@index([usuario_id])
+  @@index([aberto_por_id])
+  @@index([fechado_por_id])
   @@map("turnos_caixa")
 }
 
@@ -370,6 +413,10 @@ model Venda {
   nfe_erro_mensagem String?
   nfe_tentativas    Int        @default(0)
   nfe_enviada_em    DateTime?
+  // NFC-e SIMULADA (D3, #81). Numeração sequencial por loja e o retrato imutável do documento
+  // (loja, itens, taxa, consumidor) de onde o HTML imprimível é gerado. Nada aqui é fiscal.
+  nfe_numero  Int?
+  nfe_espelho Json?
 
   // Trilha de cancelamento
   cancelada_em     DateTime?
@@ -386,6 +433,8 @@ model Venda {
   itens           ItemVenda[]
   cupom           Cupom?
 
+  // Número único por loja. NULL não conflita, então vendas sem nota ficam de fora.
+  @@unique([estabelecimento_id, nfe_numero])
   @@index([estabelecimento_id, criada_em])
   @@index([estabelecimento_id, status_pagamento])
   @@index([cliente_id])

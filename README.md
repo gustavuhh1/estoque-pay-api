@@ -40,13 +40,15 @@ npm install
 
 ### 2. Configurar Variáveis de Ambiente
 
-Crie um arquivo `.env` na raiz do projeto (você pode usar o `.env.example` como base, se houver) e preencha as variáveis principais:
+Copie o modelo e preencha. O `.env` nunca vai para o git:
 
-```env
-PORT=3333
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/estoquepay?schema=public"
-# Adicione aqui chaves do AbacatePay, Focus NFe e Google SSO conforme necessário
+```bash
+cp .env.example .env
 ```
+
+O [`.env.example`](.env.example) lista e comenta **todas** as variáveis (banco, better-auth, Google, Brevo e AbacatePay). Para rodar só o básico localmente bastam `DATABASE_URL` e `BETTER_AUTH_SECRET`; o resto habilita e-mail, login Google, Pix e assinatura.
+
+Para os testes, copie também [`.env.test.example`](.env.test.example) para `.env.test`. **Atenção:** o `npm test` roda `prisma migrate reset --force` no banco apontado ali, que apaga todos os dados dele. Use sempre o banco descartável `estoque-db-test` (o compose o cria).
 
 ### 3. Iniciar o Banco de Dados (Docker)
 
@@ -75,6 +77,51 @@ npm run dev
 ```
 
 Pronto! A API estará rodando em `http://localhost:3333`.
+
+---
+
+## 🚀 Produção
+
+### Build e execução
+
+`tsx` é **só para desenvolvimento** (`npm run dev`). Em produção roda o JavaScript compilado pelo `tsup`:
+
+```bash
+npm run build   # prisma generate + tsc --noEmit + tsup  ->  dist/server.js
+npm start       # node dist/server.js
+```
+
+### Docker
+
+A imagem (`Dockerfile`, multi-stage, Node 24 alpine) compila com o `tsup`, instala só as dependências de produção e sobe com `docker/entrypoint.sh`, que aplica as migrações e inicia a API. O `docker-compose.yml` sobe **API + PostgreSQL** (volume `pgdata`, healthcheck dos dois e um banco de teste separado, `estoque-db-test`):
+
+```bash
+cp .env.example .env     # preencha os segredos
+docker compose up -d     # db + api (a API espera o banco ficar saudável)
+docker compose --profile tools up studio   # opcional: Prisma Studio em :5555
+```
+
+### Migrações em produção
+
+Estratégia: **`prisma migrate deploy`**, executado pelo `entrypoint.sh` a cada start. Aplica só as migrações versionadas pendentes e nunca apaga dados. **Não** use `db push` nem `migrate reset` em produção. Por isso o `prisma` (CLI) fica em `dependencies`: a imagem de runtime só instala as dependências de produção e precisa dele para migrar sem baixar nada na hora do start.
+
+### Healthcheck
+
+`GET /health` é público e faz um `SELECT 1` no banco: `200 { "status": "ok" }` ou `503 { "status": "error" }` (sem detalhes do erro). É o que o `HEALTHCHECK` do Docker usa e o que serve de smoke test depois do deploy.
+
+---
+
+## ⚠️ Hospedagem: front e API em domínios diferentes
+
+Antes de escolher onde hospedar, saiba que servir o front e a API em **domínios diferentes** quebra o login se nada for ajustado. O cookie de sessão do better-auth é `httpOnly` e viaja com `credentials: include`. Os pontos de atenção:
+
+- **Cookie entre sites:** em domínios diferentes o navegador trata o cookie como de terceiros (`SameSite`/`Secure`, e bloqueio de cookies de terceiros em vários navegadores). O mais seguro é o front e a API no **mesmo site** (ex.: `app.exemplo.com` e `api.exemplo.com`) ou o front fazendo **proxy/rewrite** de `/api` para a API.
+- **CORS:** em produção o CORS aceita só as origens de `APP_URL` e `TRUSTED_ORIGINS`, com `credentials` (o cookie de sessão viaja). Fora de produção continua aberto, para o front de desenvolvimento em qualquer porta. Produção sem nenhuma origem configurada recusa tudo.
+- **Origens confiáveis do better-auth:** `trustedOrigins` usa a mesma lista, e `baseURL` vem de `BETTER_AUTH_URL`. Hospedado, essas variáveis são a URL **do front** (que faz proxy de `/api`), não a da API.
+- **Login com Google:** a URL de callback autorizada no console do Google tem de ser a da API hospedada.
+- **Webhook da AbacatePay:** precisa de URL pública. É uma só, para Pix e assinatura: `POST {BASE_URL}/pagamento/webhook/abacatepay?webhookSecret=...`.
+
+A escolha feita (Render + Neon + Vercel, com o front fazendo proxy de `/api`) e o passo a passo estão em [`docs/Hospedagem_Render_Neon_Vercel.md`](docs/Hospedagem_Render_Neon_Vercel.md). O [`render.yaml`](render.yaml) é o Blueprint da API.
 
 ---
 
@@ -109,19 +156,19 @@ Abaixo estão os principais módulos desenvolvidos nesta versão inicial:
 
 ### 5. Pagamentos & Vendas
 
-- Integração 100% Pix via AbacatePay (Geração de QR Code e confirmação automática via Webhook).
+- Integração 100% Pix via AbacatePay (QR Code, confirmação por polling e por webhook, com baixa de estoque idempotente).
 - Registro manual de vendas para Cartão (maquininha externa) e Dinheiro.
-- Histórico completo de vendas e Split de Pagamentos.
+- Taxa de serviço de R$ 0,80 paga pelo consumidor, **só no Pix**, discriminada na nota.
+- Histórico completo de vendas.
 
 ### 6. Emissão NFCe (Nota Fiscal)
 
-- Emissão "invisível" em segundo plano (Integração com Focus NFe / eNotas).
-- Armazenamento otimizado (apenas URLs de PDF/XML e Status).
+- **NFC-e simulada:** a emissão fiscal real está fora do escopo. Depois da venda paga, com o Switch Fiscal ligado (Premium), o sistema gera, guarda e permite imprimir um espelho da nota, sempre com o aviso *DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO*.
 
 ### 7. Configurações da Loja
 
 - Gestão de dados da empresa (CNPJ, IE, Certificado A1).
-- Gestão de equipe e planos de assinatura (Free/Premium).
+- Gestão de equipe e planos de assinatura: Free (50 produtos ativos, 3 membros, CRM só com CPF e Nome) e Premium (R$ 30,00/mês ou R$ 299,90/ano, só no cartão, trial de 7 dias).
 
 ---
 

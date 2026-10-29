@@ -1,6 +1,7 @@
 import type {
   Estabelecimento,
   MembroEstabelecimento,
+  StatusAssinatura,
 } from "../../../../generated/prisma/client.js"
 
 /**
@@ -54,4 +55,14 @@ export interface IEstabelecimentoRepository {
     id: string,
     data: UpdateEstabelecimentoParams
   ): Promise<Estabelecimento>
+  /**
+   * RN00: o status da assinatura é a fonte do plano efetivo. null = a loja
+   * nunca assinou (plano Free).
+   */
+  findStatusAssinatura(id: string): Promise<StatusAssinatura | null>
+  /**
+   * RN01/RN01.1 (#59): único caminho de escrita do Switch Fiscal. Separado do
+   * `update` de propósito — quem liga já passou pelo pre-check no Service.
+   */
+  setEmiteNfce(id: string, emiteNfce: boolean): Promise<Estabelecimento>
 }

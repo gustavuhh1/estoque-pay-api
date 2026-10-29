@@ -32,6 +32,16 @@ export interface IProdutoRepository {
   create(data: CreateProdutoParams): Promise<Produto>
   /** RF02.2: só produtos não soft-deletados (deletado_em: null) da loja. */
   findManyByEstabelecimento(estabelecimentoId: string): Promise<Produto[]>
+  /**
+   * RF01.1 (PDV): busca por código de barras ou nome, para o caixa montar a
+   * venda. Semântica DIFERENTE do findManyByEstabelecimento: aqui produto
+   * inativo NÃO aparece — a listagem de gestão mostra inativos de propósito,
+   * o balcão não pode vender o que está fora de linha.
+   *
+   * Casamento exato no `ean_gtin` (o leitor devolve o código inteiro) e
+   * parcial, sem diferenciar maiúsculas, no `nome`.
+   */
+  buscarParaVenda(estabelecimentoId: string, termo: string): Promise<Produto[]>
   /** Escopado por loja: produto de outra loja (ou soft-deletado) retorna null. */
   findByIdAndEstabelecimento(id: string, estabelecimentoId: string): Promise<Produto | null>
   /** RF03.3 / RF05.5 / RF06.6: atualização parcial (inclui toggles de `ativo`). */
@@ -50,4 +60,14 @@ export interface IProdutoRepository {
    * gestão, mas ItemVenda/MovimentacaoEstoque continuam intactos).
    */
   softDelete(id: string): Promise<void>
+  /**
+   * RN01.1 (#59): produtos ATIVOS (e não soft-deletados) sem NCM ou sem CFOP —
+   * os que impedem ligar o Switch Fiscal. Inativo não conta: não vai para o
+   * PDV, logo não gera nota. Devolve o total e uma amostra de até `limite`
+   * itens para o front apontar quais corrigir.
+   */
+  findAtivosSemConformidadeFiscal(
+    estabelecimentoId: string,
+    limite: number
+  ): Promise<{ total: number; produtos: Array<{ id: string; nome: string }> }>
 }

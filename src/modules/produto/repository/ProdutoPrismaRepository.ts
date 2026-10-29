@@ -32,6 +32,26 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
     })
   }
 
+  async buscarParaVenda(estabelecimentoId: string, termo: string) {
+    return this.prisma.produto.findMany({
+      where: {
+        estabelecimento_id: estabelecimentoId,
+        deletado_em: null,
+        // Ao contrário da listagem de gestão, o PDV não pode oferecer produto
+        // inativo: está fora de linha, não se vende.
+        ativo: true,
+        OR: [
+          // O leitor de código de barras devolve o código completo, então
+          // casamento exato — e não `contains`, que traria produtos cujo
+          // código apenas contém o lido.
+          { ean_gtin: termo },
+          { nome: { contains: termo, mode: "insensitive" } },
+        ],
+      },
+      orderBy: { nome: "asc" },
+    })
+  }
+
   async findByIdAndEstabelecimento(id: string, estabelecimentoId: string) {
     return this.prisma.produto.findFirst({
       where: { id, estabelecimento_id: estabelecimentoId, deletado_em: null },
@@ -102,5 +122,28 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
       where: { id },
       data: { deletado_em: new Date(), ean_gtin: null },
     })
+  }
+
+  async findAtivosSemConformidadeFiscal(estabelecimentoId: string, limite: number) {
+    const where = {
+      estabelecimento_id: estabelecimentoId,
+      ativo: true,
+      deletado_em: null,
+      // String vazia conta como ausente: o DTO não deixa gravar "", mas o
+      // pre-check fiscal não pode depender só disso.
+      OR: [{ ncm: null }, { ncm: "" }, { cfop: null }, { cfop: "" }],
+    }
+
+    const [produtos, total] = await Promise.all([
+      this.prisma.produto.findMany({
+        where,
+        select: { id: true, nome: true },
+        orderBy: { nome: "asc" },
+        take: limite,
+      }),
+      this.prisma.produto.count({ where }),
+    ])
+
+    return { total, produtos }
   }
 }

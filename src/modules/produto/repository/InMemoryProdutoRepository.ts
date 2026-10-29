@@ -42,6 +42,21 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
     )
   }
 
+  async buscarParaVenda(estabelecimentoId: string, termo: string): Promise<Produto[]> {
+    const alvo = termo.toLowerCase()
+
+    return this.produtos
+      .filter(
+        (produto) =>
+          produto.estabelecimento_id === estabelecimentoId &&
+          produto.deletado_em === null &&
+          // O PDV não oferece produto inativo (ver IProdutoRepository).
+          produto.ativo &&
+          (produto.ean_gtin === termo || produto.nome.toLowerCase().includes(alvo))
+      )
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  }
+
   async findByIdAndEstabelecimento(
     id: string,
     estabelecimentoId: string
@@ -99,5 +114,22 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
 
     produto.deletado_em = new Date()
     produto.ean_gtin = null
+  }
+
+  async findAtivosSemConformidadeFiscal(estabelecimentoId: string, limite: number) {
+    const pendentes = this.produtos
+      .filter(
+        (produto) =>
+          produto.estabelecimento_id === estabelecimentoId &&
+          produto.ativo &&
+          produto.deletado_em === null &&
+          (!produto.ncm || !produto.cfop)
+      )
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    return {
+      total: pendentes.length,
+      produtos: pendentes.slice(0, limite).map(({ id, nome }) => ({ id, nome })),
+    }
   }
 }

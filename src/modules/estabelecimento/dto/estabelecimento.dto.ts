@@ -15,9 +15,9 @@ export const createEstabelecimentoSchema = z.object({
   // emite_nfce NÃO é parâmetro de criação de propósito: nasce sempre false
   // (default do schema). Ligar o switch passa por um pre-check de conformidade
   // (RN01/RN01.1 — Certificado A1, CNPJ/IE, produtos com NCM/CFOP e plano
-  // Premium ativo) que não existe no momento em que a loja é criada — ver
-  // issue #59. Aceitar o campo aqui seria abrir uma porta para pular esse
-  // pre-check inteiro.
+  // Premium ativo) que a loja recém-criada nunca cumpre, e que mora na rota
+  // dedicada `PATCH /estabelecimento/ativo/nfce` (issue #59). Aceitar o campo
+  // aqui seria abrir uma porta para pular esse pre-check inteiro.
 })
 
 /** Saída do parse: o que o service recebe (cnpj já normalizado). */
@@ -72,7 +72,8 @@ export const estabelecimentoAtivoResponseSchema = estabelecimentoResponseSchema.
 
 /**
  * RF04.2: atualização parcial dos dados cadastrais da loja ativa.
- * `emite_nfce` fica de fora pelo mesmo motivo do create acima — issue #59.
+ * `emite_nfce` fica de fora pelo mesmo motivo do create acima: o switch tem
+ * rota própria, com pre-check (issue #59).
  */
 export const updateEstabelecimentoSchema = z
   .object({
@@ -92,3 +93,37 @@ export const updateEstabelecimentoSchema = z
 
 export type UpdateEstabelecimentoDTO = z.infer<typeof updateEstabelecimentoSchema>
 export type UpdateEstabelecimentoInput = z.input<typeof updateEstabelecimentoSchema>
+
+/** RN01/RN01.1 (#59): liga ou desliga a emissão de NFC-e da loja ativa. */
+export const switchFiscalSchema = z.object({
+  emite_nfce: z.boolean(),
+})
+export type SwitchFiscalDTO = z.infer<typeof switchFiscalSchema>
+
+export const codigoPendenciaFiscalSchema = z.enum([
+  "PLANO_NAO_PREMIUM",
+  "CERTIFICADO_A1_AUSENTE",
+  "IE_AUSENTE",
+  "PRODUTOS_SEM_NCM_CFOP",
+])
+
+export const pendenciaFiscalSchema = z.object({
+  codigo: codigoPendenciaFiscalSchema,
+  mensagem: z.string(),
+  /** Só em PRODUTOS_SEM_NCM_CFOP: quantos produtos ativos estão sem NCM/CFOP. */
+  total_produtos: z.number().int().optional(),
+  /** Só em PRODUTOS_SEM_NCM_CFOP: amostra (até 50) para o front apontar quais corrigir. */
+  produtos: z.array(z.object({ id: z.uuid(), nome: z.string() })).optional(),
+})
+export type PendenciaFiscal = z.infer<typeof pendenciaFiscalSchema>
+
+/**
+ * Resultado do pre-check sem tentar ligar nada: o front mostra o checklist do
+ * que falta antes de o dono clicar no switch.
+ */
+export const preCheckFiscalResponseSchema = z.object({
+  apto: z.boolean(),
+  plano: z.enum(["FREE", "PREMIUM"]),
+  emite_nfce: z.boolean(),
+  pendencias: z.array(pendenciaFiscalSchema),
+})
