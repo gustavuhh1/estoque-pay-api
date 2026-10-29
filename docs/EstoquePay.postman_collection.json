@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9002519e-99ad-494e-bda7-72d9ddc81f14",
     "name": "EstoquePay",
-    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 403, 409), com asserções `pm.test`. Cobre onboarding (#39) e listagem/contexto/edição da loja ativa (#40). A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n- **Produto**: fluxo feliz **e** cenários de erro (401, 400, 404, 409) do CRUD de produtos (RF01.1-RF06.6, issues #43/#44/#45), com asserções `pm.test`. Também auto-suficiente. **Limite**: os cenários fiscais RN09.1/RN09.2 (loja com NFC-e ligada) não são reproduzíveis só com HTTP — ligar `emite_nfce` agora tem rota própria (`PATCH /estabelecimento/ativo/nfce`, issue #59), mas ela exige plano Premium, e ainda não existe rota de assinatura. Coberto nos testes automatizados (`produto.e2e.spec.ts`). O bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) já é reproduzível via HTTP desde que a pasta Equipe existe (issue #41), mas as duas pastas não estão encadeadas entre si nesta coleção.\n- **Equipe**: fluxo feliz **e** cenários de erro (401, 403, 404, 409) do módulo de equipe (RF05.1-RF05.4, issues #41/#42), com asserções `pm.test`. Também auto-suficiente. Cobre cadastro com vínculo direto (e-mail já tem conta) e com convite pendente (e-mail sem conta), listagem, edição de cargo, exclusão, RBAC (Caixa bloqueado, Gestor só atribui o cargo Caixa) e a trava do último Owner.\n- **Categoria**: CRUD de categorias e vínculo N:N com produtos (RF07.1-RF11.5, issue #46), com asserções `pm.test`. Também auto-suficiente. O vínculo é **incremental**: `POST /categoria/:id/produtos` adiciona (`connect`) e `DELETE /categoria/:id/produtos` remove (`disconnect`), sem mexer no resto do vínculo. Cobre também a RN08 (excluir a categoria não apaga o produto).\n- **Estoque**: movimentação manual, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test`. Também auto-suficiente. Cobre entrada, saída fracionada (RN04), a obrigatoriedade e a coerência do motivo (RF14.3), o 409 de estoque insuficiente, e a auditoria paginada e filtrada. O relatório roda logo depois do 409 de propósito: provar que a tentativa que falhou não deixou linha de auditoria é a evidência do rollback da transação (RN05). **Limite**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_CATEGORIAS` / `ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com a pasta Equipe e não é reproduzido nessas duas pastas — está coberto nos testes automatizados.\n- **Caixa**: abertura e fechamento do turno de caixa (RF06.1/RF06.2, issue #54), com asserções `pm.test`. Também auto-suficiente. O turno é por **loja**, não por pessoa — enquanto houver um turno ABERTO ninguém abre outro (409), e a trava é um índice único parcial no banco, não só uma checagem no código. **Único módulo sem bloqueio por cargo**: qualquer membro da loja abre e fecha, inclusive o Caixa. Quem abre e quem fecha são registrados em campos separados.\n- **Venda e Pagamento**: fluxo completo do PDV — busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50/#51), com asserções `pm.test`. Também auto-suficiente. Prova a **RN01** (calcular não baixa estoque), a exigência de **turno aberto** para vender, a **RNF01** (409 de estoque insuficiente não deixa venda nem auditoria) e a **RN05** (a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA`). Pix não entra aqui: é recusado com 400 porque não é confirmação manual do caixa.\n- **Pix (Taxa e Webhook)**: iniciar o Pix com a taxa de R$ 0,80 paga pelo consumidor (D1), polling que consolida a venda, simulacao de pagamento (somente dev) e idempotencia da baixa de estoque (issues #52/#79). **Requer chave dev da AbacatePay** (chama a API deles); ver a descricao da pasta.\n- **Billing e Limites do Free**: catalogo de planos, plano efetivo da loja (derivado da assinatura) e a trava do CRM no Free (issues #64/#68). Os tetos de produtos e membros e o Premium ficam nos testes automatizados ate existir a rota de assinatura (#65).\n- **Assinatura (Cartao)**: trial Premium so no cartao (checkout hospedado da AbacatePay), cancelamento e webhook de status (issues #65/#66/#67). Parte dos requests exige **chave dev** da AbacatePay; ver a descricao da pasta.\n- **CRM**: cadastro, busca, detalhe e edição de clientes (RF01.1-RF01.4, issue #57) e histórico de compras, estatísticas/produtos favoritos e cupons de fidelidade (RF02.1-RF02.3, issue #58), com asserções `pm.test`. Também auto-suficiente. Prova o CPF validado e único por loja, a venda paga com `cliente_id` caindo no histórico, e o ciclo completo do cupom nominal: recusado sem o cliente dono, resgatado com desconto no pagamento e barrado no segundo uso.\n- **Switch Fiscal (NFC-e)**: pre-check de conformidade e o switch `emite_nfce` (RN01/RN01.1, issue #59), com asserções `pm.test`. Também auto-suficiente. **Limite**: ligar com sucesso exige plano Premium, que ainda não tem rota (issues #64/#65) — a pasta prova o checklist de pendências, o 409 e o desligamento; o caminho feliz está nos testes automatizados.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Multi-tenant (issue #40)**: as rotas `/estabelecimento/ativo` exigem o header `x-estabelecimento-id` (UUID da loja). Não existe endpoint de \"trocar de loja\" com estado no servidor — a API é stateless, quem decide qual loja está ativa é o cliente, a cada request.\n\n**Limite conhecido desta coleção**: os cenários de RBAC por cargo nas pastas Estabelecimento e Produto (Gestor bloqueado de editar CNPJ/Certificado A1, Caixa bloqueado de editar/gerenciar produtos) continuam inserindo o vínculo direto no banco nos testes automatizados, em vez de reproduzir por HTTP — cada pasta desta coleção cria sua própria loja isolada, então encadear a pasta Equipe (que já tem a rota real de vínculo, issue #41) antes delas exigiria compartilhar loja/sessão entre pastas, o que não foi feito aqui de propósito para não acoplar a ordem de execução das pastas. A pasta Equipe já prova o vínculo e o RBAC por HTTP de ponta a ponta por conta própria.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`, `ownerEmail2`, `ownerPassword2`, `cnpj2`, `estabelecimentoId2`. Da pasta Produto: `produtoOwnerEmail`, `produtoOwnerPassword`, `produtoCnpj`, `produtoCnpjMascarado`, `produtoEstabelecimentoId`, `produtoEanGtin`, `produtoId`. Da pasta Equipe: `equipeOwnerEmail`, `equipeOwnerPassword`, `equipeCnpjMascarado`, `equipeEstabelecimentoId`, `equipeOwnerMembroId`, `equipeFuncionarioEmail`, `equipeFuncionarioPassword`, `equipeMembroId`, `equipeConviteEmail`. Da pasta Categoria: `categoriaOwnerEmail`, `categoriaOwnerPassword`, `categoriaCnpj`, `categoriaCnpjMascarado`, `categoriaEstabelecimentoId`, `categoriaProdutoId`, `categoriaId`, `categoriaComProdutoId`. Da pasta Estoque: `estoqueOwnerEmail`, `estoqueOwnerPassword`, `estoqueCnpj`, `estoqueCnpjMascarado`, `estoqueEstabelecimentoId`, `estoqueProdutoId`, `estoqueProdutoAlertaId`. Da pasta Caixa: `caixaOwnerEmail`, `caixaOwnerPassword`, `caixaCnpj`, `caixaCnpjMascarado`, `caixaEstabelecimentoId`, `caixaTurnoId`. Da pasta Venda e Pagamento: `vendaOwnerEmail`, `vendaOwnerPassword`, `vendaCnpj`, `vendaCnpjMascarado`, `vendaEstabelecimentoId`, `vendaProdutoId`, `vendaId`. Da pasta CRM: `crmOwnerEmail`, `crmOwnerPassword`, `crmCnpj`, `crmCnpjMascarado`, `crmEstabelecimentoId`, `crmCpf`, `crmCpfMascarado`, `crmProdutoId`, `crmClienteId`. Da pasta Switch Fiscal: `fiscalOwnerEmail`, `fiscalOwnerPassword`, `fiscalCnpj`, `fiscalCnpjMascarado`, `fiscalEstabelecimentoId`. Não precisa editar à mão.",
+    "description": "Coleção de requests para testar manualmente as rotas HTTP da API EstoquePay.\n\nO projeto segue TDD — os testes automatizados (`npm run test`) continuam sendo a fonte da verdade. Esta coleção espelha os mesmos cenários para validação manual e para rodar via Collection Runner / Newman.\n\n**Escopo por pasta**:\n- **Auth**: apenas o fluxo feliz (cadastro, login, redefinição de senha). Cenários de erro foram deixados de fora a pedido do time.\n- **Estabelecimento**: fluxo feliz **e** cenários de erro (401, 400, 403, 409), com asserções `pm.test`. Cobre onboarding (#39) e listagem/contexto/edição da loja ativa (#40). A pasta inteira é auto-suficiente — roda de ponta a ponta pelo Runner sem preparo manual.\n- **Produto**: fluxo feliz **e** cenários de erro (401, 400, 404, 409) do CRUD de produtos (RF01.1-RF06.6, issues #43/#44/#45), com asserções `pm.test`. Também auto-suficiente. **Limite**: os cenários fiscais RN09.1/RN09.2 (loja com NFC-e ligada) não são reproduzíveis só com HTTP — ligar `emite_nfce` agora tem rota própria (`PATCH /estabelecimento/ativo/nfce`, issue #59), mas ela exige plano Premium, e ainda não existe rota de assinatura. Coberto nos testes automatizados (`produto.e2e.spec.ts`). O bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_PRODUCTS`) já é reproduzível via HTTP desde que a pasta Equipe existe (issue #41), mas as duas pastas não estão encadeadas entre si nesta coleção.\n- **Equipe**: fluxo feliz **e** cenários de erro (401, 403, 404, 409) do módulo de equipe (RF05.1-RF05.4, issues #41/#42), com asserções `pm.test`. Também auto-suficiente. Cobre cadastro com vínculo direto (e-mail já tem conta) e com convite pendente (e-mail sem conta), listagem, edição de cargo, exclusão, RBAC (Caixa bloqueado, Gestor só atribui o cargo Caixa) e a trava do último Owner.\n- **Categoria**: CRUD de categorias e vínculo N:N com produtos (RF07.1-RF11.5, issue #46), com asserções `pm.test`. Também auto-suficiente. O vínculo é **incremental**: `POST /categoria/:id/produtos` adiciona (`connect`) e `DELETE /categoria/:id/produtos` remove (`disconnect`), sem mexer no resto do vínculo. Cobre também a RN08 (excluir a categoria não apaga o produto).\n- **Estoque**: movimentação manual, relatório de auditoria e alertas de estoque mínimo (RF12.1-RF17.2, issues #47/#48/#49), com asserções `pm.test`. Também auto-suficiente. Cobre entrada, saída fracionada (RN04), a obrigatoriedade e a coerência do motivo (RF14.3), o 409 de estoque insuficiente, e a auditoria paginada e filtrada. O relatório roda logo depois do 409 de propósito: provar que a tentativa que falhou não deixou linha de auditoria é a evidência do rollback da transação (RN05). **Limite**: o bloqueio do cargo Caixa (`ROLE_CANNOT_MANAGE_CATEGORIAS` / `ROLE_CANNOT_MANAGE_ESTOQUE`) depende de encadear com a pasta Equipe e não é reproduzido nessas duas pastas — está coberto nos testes automatizados.\n- **Caixa**: abertura e fechamento do turno de caixa (RF06.1/RF06.2, issue #54), com asserções `pm.test`. Também auto-suficiente. O turno é por **loja**, não por pessoa — enquanto houver um turno ABERTO ninguém abre outro (409), e a trava é um índice único parcial no banco, não só uma checagem no código. **Único módulo sem bloqueio por cargo**: qualquer membro da loja abre e fecha, inclusive o Caixa. Quem abre e quem fecha são registrados em campos separados.\n- **Venda e Pagamento**: fluxo completo do PDV — busca, cálculo do carrinho e pagamento manual (RF01.1-RF02.2, issues #50/#51), com asserções `pm.test`. Também auto-suficiente. Prova a **RN01** (calcular não baixa estoque), a exigência de **turno aberto** para vender, a **RNF01** (409 de estoque insuficiente não deixa venda nem auditoria) e a **RN05** (a baixa da venda gera `MovimentacaoEstoque` com motivo `VENDA`). Pix não entra aqui: é recusado com 400 porque não é confirmação manual do caixa.\n- **Pix (Taxa e Webhook)**: iniciar o Pix com a taxa de R$ 0,80 paga pelo consumidor (D1), polling que consolida a venda, simulacao de pagamento (somente dev) e idempotencia da baixa de estoque (issues #52/#79). **Requer chave dev da AbacatePay** (chama a API deles); ver a descricao da pasta.\n- **Billing e Limites do Free**: catalogo de planos, plano efetivo da loja (derivado da assinatura) e a trava do CRM no Free (issues #64/#68). Os tetos de produtos e membros e o Premium ficam nos testes automatizados ate existir a rota de assinatura (#65).\n- **Assinatura (Cartao)**: trial Premium so no cartao (checkout hospedado da AbacatePay), cancelamento e webhook de status (issues #65/#66/#67). Parte dos requests exige **chave dev** da AbacatePay; ver a descricao da pasta.\n- **NFC-e Simulada**: espelho da nota apos a venda paga (D3, issue #81), sempre com o aviso de que nao tem valor fiscal. A pasta prova o caminho sem direito a nota; o caminho feliz exige Premium e esta nos testes automaticos.\n- **CRM**: cadastro, busca, detalhe e edição de clientes (RF01.1-RF01.4, issue #57) e histórico de compras, estatísticas/produtos favoritos e cupons de fidelidade (RF02.1-RF02.3, issue #58), com asserções `pm.test`. Também auto-suficiente. Prova o CPF validado e único por loja, a venda paga com `cliente_id` caindo no histórico, e o ciclo completo do cupom nominal: recusado sem o cliente dono, resgatado com desconto no pagamento e barrado no segundo uso.\n- **Switch Fiscal (NFC-e)**: pre-check de conformidade e o switch `emite_nfce` (RN01/RN01.1, issue #59), com asserções `pm.test`. Também auto-suficiente. **Limite**: ligar com sucesso exige plano Premium, que ainda não tem rota (issues #64/#65) — a pasta prova o checklist de pendências, o 409 e o desligamento; o caminho feliz está nos testes automatizados.\n\n**Como usar**:\n1. Suba a API local: `docker compose up -d db` e depois `npm run dev` (API em `http://localhost:3333`).\n2. Rode cada pasta **em sequência**, de cima para baixo — os requests dependem uns dos outros (login antes das rotas protegidas, criação antes do teste de duplicidade).\n3. A variável de coleção `baseUrl` já aponta para o ambiente de dev local — troque se necessário.\n\n**Autenticação**: a sessão viaja em cookie httpOnly (`better-auth.session_token`), emitido pelo `POST /auth/login` e reenviado automaticamente pelo cookie jar do Postman. Não há Bearer token.\n\n**Multi-tenant (issue #40)**: as rotas `/estabelecimento/ativo` exigem o header `x-estabelecimento-id` (UUID da loja). Não existe endpoint de \"trocar de loja\" com estado no servidor — a API é stateless, quem decide qual loja está ativa é o cliente, a cada request.\n\n**Limite conhecido desta coleção**: os cenários de RBAC por cargo nas pastas Estabelecimento e Produto (Gestor bloqueado de editar CNPJ/Certificado A1, Caixa bloqueado de editar/gerenciar produtos) continuam inserindo o vínculo direto no banco nos testes automatizados, em vez de reproduzir por HTTP — cada pasta desta coleção cria sua própria loja isolada, então encadear a pasta Equipe (que já tem a rota real de vínculo, issue #41) antes delas exigiria compartilhar loja/sessão entre pastas, o que não foi feito aqui de propósito para não acoplar a ordem de execução das pastas. A pasta Equipe já prova o vínculo e o RBAC por HTTP de ponta a ponta por conta própria.\n\n**Fluxo de redefinição de senha**: `Forgot Password` dispara o e-mail (via Brevo) e `Reset Password` consome o token. O token **não** volta na resposta HTTP — ele chega apenas por e-mail, então copie-o para a variável de coleção `resetToken` entre um request e outro.\n\n**Variáveis preenchidas automaticamente** pelos scripts da pasta Estabelecimento: `ownerEmail`, `ownerPassword`, `cnpj`, `cnpjMascarado`, `estabelecimentoId`, `ownerEmail2`, `ownerPassword2`, `cnpj2`, `estabelecimentoId2`. Da pasta Produto: `produtoOwnerEmail`, `produtoOwnerPassword`, `produtoCnpj`, `produtoCnpjMascarado`, `produtoEstabelecimentoId`, `produtoEanGtin`, `produtoId`. Da pasta Equipe: `equipeOwnerEmail`, `equipeOwnerPassword`, `equipeCnpjMascarado`, `equipeEstabelecimentoId`, `equipeOwnerMembroId`, `equipeFuncionarioEmail`, `equipeFuncionarioPassword`, `equipeMembroId`, `equipeConviteEmail`. Da pasta Categoria: `categoriaOwnerEmail`, `categoriaOwnerPassword`, `categoriaCnpj`, `categoriaCnpjMascarado`, `categoriaEstabelecimentoId`, `categoriaProdutoId`, `categoriaId`, `categoriaComProdutoId`. Da pasta Estoque: `estoqueOwnerEmail`, `estoqueOwnerPassword`, `estoqueCnpj`, `estoqueCnpjMascarado`, `estoqueEstabelecimentoId`, `estoqueProdutoId`, `estoqueProdutoAlertaId`. Da pasta Caixa: `caixaOwnerEmail`, `caixaOwnerPassword`, `caixaCnpj`, `caixaCnpjMascarado`, `caixaEstabelecimentoId`, `caixaTurnoId`. Da pasta Venda e Pagamento: `vendaOwnerEmail`, `vendaOwnerPassword`, `vendaCnpj`, `vendaCnpjMascarado`, `vendaEstabelecimentoId`, `vendaProdutoId`, `vendaId`. Da pasta CRM: `crmOwnerEmail`, `crmOwnerPassword`, `crmCnpj`, `crmCnpjMascarado`, `crmEstabelecimentoId`, `crmCpf`, `crmCpfMascarado`, `crmProdutoId`, `crmClienteId`. Da pasta Switch Fiscal: `fiscalOwnerEmail`, `fiscalOwnerPassword`, `fiscalCnpj`, `fiscalCnpjMascarado`, `fiscalEstabelecimentoId`. Não precisa editar à mão.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "19052417"
   },
@@ -8342,6 +8342,522 @@
       ]
     },
     {
+      "name": "NFC-e Simulada",
+      "description": "NFC-e SIMULADA (decisao D3, issue #81). **A emissao fiscal real esta fora do escopo**: nao ha integracao com SEFAZ, Focus NFe nem eNotas. Toda nota traz o aviso **DOCUMENTO SEM VALOR FISCAL — SIMULACAO (emissao real fora do escopo do projeto)** (JSON, tela e impressao), uma chave de acesso FICTICIA (comeca com `SIMULADO`) e nao tem protocolo nem QR Code.\n\nAuto-suficiente: cria a propria loja. Prova por HTTP o caminho **sem direito a nota**: a venda em dinheiro fecha normalmente, mas, com o Switch Fiscal desligado (e loja Free), nao gera nota (404), a emissao manual e recusada (409 `SWITCH_DESLIGADO`) e a lista fica vazia.\n\n**Limite**: o caminho feliz (nota gerada, taxa de R$ 0,80 no Pix, CPF, impressao em HTML, numeracao sem buracos) exige loja **Premium** com o Switch ligado, e hoje o Premium so nasce do webhook da AbacatePay. Esta coberto nos testes automaticos (`nfce.e2e.spec.ts`, `nfce.spec.ts`, `espelho-html.spec.ts`).\n\nVariaveis preenchidas automaticamente: `nfceOwnerEmail`, `nfceOwnerPassword`, `nfceCnpj`, `nfceCnpjMascarado`, `nfceEstabelecimentoId`, `nfceProdutoId`, `nfceVendaId`.",
+      "item": [
+        {
+          "name": "Setup - Cadastrar dono",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('nfceOwnerEmail', 'dono-venda-' + Date.now() + '@email.com');",
+                  "pm.collectionVariables.set('nfceOwnerPassword', 'password123');",
+                  "",
+                  "function digitoVerificador(digitos, pesos) {",
+                  "  var soma = pesos.reduce(function (acc, peso, i) { return acc + peso * digitos[i]; }, 0);",
+                  "  var resto = soma % 11;",
+                  "  return resto < 2 ? 0 : 11 - resto;",
+                  "}",
+                  "",
+                  "var raiz = [];",
+                  "for (var i = 0; i < 8; i++) raiz.push(Math.floor(Math.random() * 10));",
+                  "",
+                  "var base = raiz.concat([0, 0, 0, 1]);",
+                  "var dv1 = digitoVerificador(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var dv2 = digitoVerificador(base.concat(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);",
+                  "var cnpj = base.concat(dv1, dv2).join('');",
+                  "",
+                  "pm.collectionVariables.set('nfceCnpj', cnpj);",
+                  "pm.collectionVariables.set(",
+                  "  'nfceCnpjMascarado',",
+                  "  cnpj.slice(0, 2) + '.' + cnpj.slice(2, 5) + '.' + cnpj.slice(5, 8) +",
+                  "  '/' + cnpj.slice(8, 12) + '-' + cnpj.slice(12)",
+                  ");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuario criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{nfceOwnerEmail}}\",\n  \"name\": \"Dono da Loja de Vendas\",\n  \"password\": \"{{nfceOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Login do dono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{nfceOwnerEmail}}\",\n  \"password\": \"{{nfceOwnerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Loja criada (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('nfceEstabelecimentoId', pm.response.json().estabelecimento.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Loja de Vendas\",\n  \"cnpj\": \"{{nfceCnpjMascarado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estabelecimento"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Criar produto (Queijo, R$ 40/kg, saldo 10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Produto criado (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('nfceProdutoId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Queijo Minas Venda\",\n  \"tipo_medida\": \"FRACIONADO_KG\",\n  \"preco_custo\": 20,\n  \"preco_venda\": 40,\n  \"quantidade_atual\": 10,\n  \"quantidade_minima\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/produto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produto"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Setup - Abrir o caixa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Turno aberto (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor_abertura\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/caixa/turno",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caixa",
+                "turno"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Lista de notas começa vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Nenhuma nota ainda', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().total).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nfce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nfce"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "201 - Pagar em dinheiro (loja Free, Switch desligado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda fecha normalmente (201)', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('nfceVendaId', pm.response.json().venda_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pagamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pagamento"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [{ \"produto_id\": \"{{nfceProdutoId}}\", \"quantidade\": 1 }],\n  \"metodo_pagamento\": \"DINHEIRO\",\n  \"valor_pago\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Loja sem Switch/Premium não gera nota (D3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('NFCE_NAO_ENCONTRADA (404)', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().code).to.eql('NFCE_NAO_ENCONTRADA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nfce/vendas/{{nfceVendaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nfce",
+                "vendas",
+                "{{nfceVendaId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "409 - Emitir manualmente com o Switch desligado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('NFCE_NAO_ELEGIVEL / SWITCH_DESLIGADO (409)', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().code).to.eql('NFCE_NAO_ELEGIVEL');",
+                  "  pm.expect(pm.response.json().details.motivo).to.eql('SWITCH_DESLIGADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nfce/vendas/{{nfceVendaId}}/emitir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nfce",
+                "vendas",
+                "{{nfceVendaId}}",
+                "emitir"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "404 - Imprimir venda sem nota",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sem nota para imprimir (404)', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nfce/vendas/{{nfceVendaId}}/imprimir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nfce",
+                "vendas",
+                "{{nfceVendaId}}",
+                "imprimir"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "200 - A lista segue vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Venda paga sem direito a nota nao entra na lista', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().total).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{nfceEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nfce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nfce"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "CRM",
       "description": "Gestão de clientes (RF01.1-RF01.4, issue #57) e histórico, inteligência de dados e fidelidade (RF02.1-RF02.3, issue #58), com asserções `pm.test` espelhando `src/modules/crm/tests/cliente.e2e.spec.ts` e `fidelidade.e2e.spec.ts`.\n\nAuto-suficiente: rode a pasta inteira pelo Runner, de cima para baixo. O setup cria um dono, uma loja, abre o caixa e cadastra um produto (Café, R$ 25).\n\n**O que esta pasta prova**: o CPF é validado pelos dígitos verificadores, normalizado e único por loja (409); a venda paga com `cliente_id` cai no histórico do cliente (RF02.1); as estatísticas contam só vendas pagas (RF02.2); e o cupom nominal só vale na venda do próprio cliente, é baixado na mesma transação do pagamento e não pode ser usado duas vezes (RF02.3).",
       "item": [
@@ -10163,6 +10679,34 @@
     },
     {
       "key": "assinaturaCheckoutUrl",
+      "value": ""
+    },
+    {
+      "key": "nfceOwnerEmail",
+      "value": ""
+    },
+    {
+      "key": "nfceOwnerPassword",
+      "value": ""
+    },
+    {
+      "key": "nfceCnpj",
+      "value": ""
+    },
+    {
+      "key": "nfceCnpjMascarado",
+      "value": ""
+    },
+    {
+      "key": "nfceEstabelecimentoId",
+      "value": ""
+    },
+    {
+      "key": "nfceProdutoId",
+      "value": ""
+    },
+    {
+      "key": "nfceVendaId",
       "value": ""
     }
   ]
