@@ -116,12 +116,12 @@ Estratégia: **`prisma migrate deploy`**, executado pelo `entrypoint.sh` a cada 
 Antes de escolher onde hospedar, saiba que servir o front e a API em **domínios diferentes** quebra o login se nada for ajustado. O cookie de sessão do better-auth é `httpOnly` e viaja com `credentials: include`. Os pontos de atenção:
 
 - **Cookie entre sites:** em domínios diferentes o navegador trata o cookie como de terceiros (`SameSite`/`Secure`, e bloqueio de cookies de terceiros em vários navegadores). O mais seguro é o front e a API no **mesmo site** (ex.: `app.exemplo.com` e `api.exemplo.com`) ou o front fazendo **proxy/rewrite** de `/api` para a API.
-- **CORS:** hoje a API usa `cors({ origin: true })` **sem `credentials: true`**. Com isso o navegador **não envia nem aceita cookie** numa chamada entre origens. Será preciso restringir a origem ao front e habilitar `credentials`.
-- **Origens confiáveis do better-auth:** a configuração de `trustedOrigins` e a URL base do better-auth precisam apontar para os domínios reais (variáveis `BETTER_AUTH_URL`, `BASE_URL` e `APP_URL`). O `src/lib/auth.ts` hoje passa `baseUrl`, mas a opção do better-auth se chama `baseURL`; a URL efetiva vem de `BETTER_AUTH_URL`.
+- **CORS:** em produção o CORS aceita só as origens de `APP_URL` e `TRUSTED_ORIGINS`, com `credentials` (o cookie de sessão viaja). Fora de produção continua aberto, para o front de desenvolvimento em qualquer porta. Produção sem nenhuma origem configurada recusa tudo.
+- **Origens confiáveis do better-auth:** `trustedOrigins` usa a mesma lista, e `baseURL` vem de `BETTER_AUTH_URL`. Hospedado, essas variáveis são a URL **do front** (que faz proxy de `/api`), não a da API.
 - **Login com Google:** a URL de callback autorizada no console do Google tem de ser a da API hospedada.
 - **Webhook da AbacatePay:** precisa de URL pública. É uma só, para Pix e assinatura: `POST {BASE_URL}/pagamento/webhook/abacatepay?webhookSecret=...`.
 
-Esses ajustes dependem do domínio escolhido, então ficam para a etapa de hospedagem.
+A escolha feita (Render + Neon + Vercel, com o front fazendo proxy de `/api`) e o passo a passo estão em [`docs/Hospedagem_Render_Neon_Vercel.md`](docs/Hospedagem_Render_Neon_Vercel.md). O [`render.yaml`](render.yaml) é o Blueprint da API.
 
 ---
 
