@@ -22,7 +22,7 @@ export default async function routes(app: FastifyInstance) {
   app.register(vendaRoutes, { prefix: "/venda" })
   app.register(pagamentoRoutes(), { prefix: "/pagamento" })
   app.register(crmRoutes, { prefix: "/crm" })
-  app.register(billingRoutes, { prefix: "/billing" })
+  app.register(billingRoutes(), { prefix: "/billing" })
   // app.register(pdvRoutes, { prefix: "/pdv" })
   // app.register(nfceRoutes, { prefix: "/nfce" })
 }
