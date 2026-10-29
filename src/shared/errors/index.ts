@@ -334,3 +334,20 @@ export class AssinaturaJaCanceladaError extends ConflictError {
     super("Esta assinatura já foi cancelada.", "ASSINATURA_JA_CANCELADA")
   }
 }
+
+/**
+ * Pedido para emitir a NFC-e simulada de uma venda que hoje não pode ter nota
+ * (D3). 409 porque o corpo está certo: o conflito é com o estado da venda ou da
+ * loja, e muda se isso mudar. `motivo` é estável para o cliente fazer `switch`.
+ */
+export class NfceNaoElegivelError extends ConflictError {
+  constructor(motivo: "VENDA_NAO_PAGA" | "SWITCH_DESLIGADO" | "PLANO_FREE") {
+    const mensagens = {
+      VENDA_NAO_PAGA: "Só uma venda paga pode ter NFC-e.",
+      SWITCH_DESLIGADO: "A emissão de NFC-e está desligada nesta loja.",
+      PLANO_FREE: "A NFC-e exige o plano Premium.",
+    } as const
+
+    super(mensagens[motivo], "NFCE_NAO_ELEGIVEL", { motivo })
+  }
+}
