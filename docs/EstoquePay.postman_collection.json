@@ -6859,6 +6859,153 @@
           "response": []
         },
         {
+          "name": "200 - Histórico de vendas, mais recentes primeiro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Histórico retornado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Traz as duas vendas do fluxo, paginado', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total).to.be.at.least(2);",
+                  "  pm.expect(body.pagina).to.eql(1);",
+                  "  pm.expect(body.limite).to.eql(20);",
+                  "  var ids = body.itens.map(function (v) { return v.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('vendaId'));",
+                  "});",
+                  "",
+                  "pm.test('Cada venda traz o total cobrado (itens + taxa do Pix)', function () {",
+                  "  pm.response.json().itens.forEach(function (v) {",
+                  "    pm.expect(v.total_cobrado).to.be.a('number');",
+                  "    pm.expect(v.total_cobrado).to.be.at.least(v.total_venda);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda"
+              ]
+            },
+            "description": "Owner e Gestor veem a loja inteira; o Caixa vê só as vendas que ele mesmo registrou. Paginado (`pagina`, `limite` até 100); filtros opcionais `status`, `de` e `ate` (ISO 8601 sobre a data de criação)."
+          },
+          "response": []
+        },
+        {
+          "name": "200 - Filtrar vendas por status CANCELADO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filtro aplicado (200)', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Só a venda cancelada acima', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(1);",
+                  "  pm.expect(body.itens[0].id).to.eql(pm.collectionVariables.get('vendaId'));",
+                  "  pm.expect(body.itens[0].status_pagamento).to.eql('CANCELADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda?status=CANCELADO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "CANCELADO"
+                }
+              ]
+            },
+            "description": "A venda cancelada no passo anterior é a única com status CANCELADO neste fluxo."
+          },
+          "response": []
+        },
+        {
+          "name": "400 - Período com início depois do fim",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Período invertido é recusado (400)', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-estabelecimento-id",
+                "value": "{{vendaEstabelecimentoId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/venda?de=2026-10-31T00:00:00Z&ate=2026-10-01T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venda"
+              ],
+              "query": [
+                {
+                  "key": "de",
+                  "value": "2026-10-31T00:00:00Z"
+                },
+                {
+                  "key": "ate",
+                  "value": "2026-10-01T00:00:00Z"
+                }
+              ]
+            },
+            "description": "`de` não pode ser depois de `ate`."
+          },
+          "response": []
+        },
+        {
           "name": "200 - Fechar o caixa",
           "event": [
             {

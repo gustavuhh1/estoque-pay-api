@@ -14,6 +14,8 @@ import {
   calcularVendaSchema,
   calculoVendaResponseSchema,
   listProdutoBuscaResponseSchema,
+  listVendasResponseSchema,
+  listarVendasQuerySchema,
   vendaIdParamsSchema,
   vendaResponseSchema,
 } from "./dto/venda.dto"
@@ -36,6 +38,29 @@ export async function vendaRoutes(app: FastifyInstance) {
   const vendaController = new VendaController(vendaService)
 
   const route = app.withTypeProvider<ZodTypeProvider>()
+
+  route.get(
+    "/",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Venda"],
+        summary: "Histórico de vendas da loja ativa",
+        description: `${TENANT_HEADER_DOC} Mais recentes primeiro, paginado (\`pagina\`, \`limite\` até 100). Filtros opcionais: \`status\`, \`de\` e \`ate\` (ISO 8601, sobre a data de criação). **Owner e Gestor** veem a loja inteira; **Caixa** vê só as vendas que ele mesmo registrou. \`total_cobrado\` = itens − cupom + taxa do Pix (D1).`,
+        security: [{ cookieAuth: [] }],
+        querystring: listarVendasQuerySchema,
+        response: {
+          200: listVendasResponseSchema,
+          400: errorResponseSchema.describe(
+            "Filtro inválido (code: VALIDATION_ERROR) ou header de tenant ausente (code: TENANT_HEADER_REQUIRED)"
+          ),
+          401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+          403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+        },
+      },
+    },
+    async (req, res) => vendaController.listar(req, res)
+  )
 
   route.get(
     "/buscar",

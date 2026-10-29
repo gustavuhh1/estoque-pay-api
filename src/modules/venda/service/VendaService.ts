@@ -6,7 +6,7 @@ import {
   VendaNaoPagaError,
 } from "@/shared/errors"
 import type { IProdutoRepository } from "@/modules/produto/repository/IProdutoRepository"
-import type { ItemCarrinhoDTO, VendaComItens } from "../dto/venda.dto"
+import type { ItemCarrinhoDTO, ListarVendasQuery, VendaComItens } from "../dto/venda.dto"
 import type { IVendaRepository } from "../repository/IVendaRepository"
 
 export interface ItemPrecificado {
@@ -46,6 +46,30 @@ export class VendaService {
         "ROLE_CANNOT_CANCEL_VENDA"
       )
     }
+  }
+
+  /**
+   * Histórico de vendas da loja, mais recentes primeiro. Owner e Gestor veem a
+   * loja inteira; o Caixa só as vendas que ele mesmo registrou (confere o turno
+   * sem enxergar o faturamento dos colegas).
+   */
+  async listar(
+    estabelecimentoId: string,
+    usuarioId: string,
+    role: Role,
+    filtros: ListarVendasQuery
+  ) {
+    const { itens, total } = await this.vendaRepository.listar({
+      estabelecimento_id: estabelecimentoId,
+      usuario_id: role === "CASHIER" ? usuarioId : undefined,
+      status: filtros.status,
+      de: filtros.de,
+      ate: filtros.ate,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+    })
+
+    return { itens, total, pagina: filtros.pagina, limite: filtros.limite }
   }
 
   /** RF01.1 */

@@ -5,6 +5,8 @@ import type {
   CancelarVendaParams,
   ConsolidacaoPix,
   IVendaRepository,
+  ListarVendasParams,
+  PaginaDeVendas,
   RegistrarVendaPagaParams,
   RegistrarVendaPixPendenteParams,
 } from "./IVendaRepository"
@@ -24,6 +26,34 @@ export class VendaPrismaRepository implements IVendaRepository {
     private prisma: PrismaClient,
     private estoqueRepository: IEstoqueRepository
   ) {}
+
+  async listar(params: ListarVendasParams): Promise<PaginaDeVendas> {
+    const where: Prisma.VendaWhereInput = {
+      estabelecimento_id: params.estabelecimento_id,
+      ...(params.usuario_id !== undefined && { usuario_id: params.usuario_id }),
+      ...(params.status !== undefined && { status_pagamento: params.status }),
+      ...((params.de !== undefined || params.ate !== undefined) && {
+        criada_em: {
+          ...(params.de !== undefined && { gte: params.de }),
+          ...(params.ate !== undefined && { lte: params.ate }),
+        },
+      }),
+    }
+
+    const [itens, total] = await Promise.all([
+      this.prisma.venda.findMany({
+        where,
+        include: RELACOES_DA_VENDA,
+        // `id` desempata vendas do mesmo instante, para a paginação não repetir linha.
+        orderBy: [{ criada_em: "desc" }, { id: "desc" }],
+        skip: (params.pagina - 1) * params.limite,
+        take: params.limite,
+      }),
+      this.prisma.venda.count({ where }),
+    ])
+
+    return { itens, total }
+  }
 
   async registrarVendaPaga(params: RegistrarVendaPagaParams) {
     return this.prisma.$transaction(async (tx) => {
