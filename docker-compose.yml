@@ -1,6 +1,7 @@
 services:
   db:
-    image: postgres:latest
+    # Major fixada (era `latest`): subir de major com o volume existente quebra o banco.
+    image: postgres:18
     container_name: estoquepay-pg
     restart: always
     shm_size: 128mb
@@ -58,6 +59,13 @@ services:
       PORT: "3333"
     ports:
       - "3333:3333"
+    healthcheck:
+      # Mesmo endpoint do HEALTHCHECK do Dockerfile, visível aqui para quem lê o compose.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3333/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 volumes:
   pgdata:
