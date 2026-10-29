@@ -18,6 +18,7 @@ import type {
   StatusCobrancaPix,
 } from "../gateway/IPagamentoGateway"
 import { PIX_EXPIRA_EM_SEGUNDOS, TAXA_PIX_REAIS } from "../taxa-pix"
+import type { NfceService } from "@/modules/nfce/service/NfceService"
 
 export interface PagamentoRegistrado {
   venda: VendaComItens
@@ -67,7 +68,12 @@ export class PagamentoService {
     private caixaRepository: ICaixaRepository,
     private clienteService: ClienteService,
     private cupomService: CupomService,
-    private gateway: IPagamentoGateway
+    private gateway: IPagamentoGateway,
+    /**
+     * NFC-e simulada (D3). Opcional porque a venda funciona sem ela: só as rotas de
+     * produção a injetam, e os testes de venda não precisam.
+     */
+    private nfceService?: NfceService
   ) {}
 
   async registrarPagamentoManual(
@@ -99,6 +105,10 @@ export class PagamentoService {
         subtotal: item.subtotal,
       })),
     })
+
+    // D3: venda paga -> NFC-e simulada, se a loja tem o Switch ligado. Fora da
+    // transação da venda e sem nunca lançar: a nota não pode desfazer a venda.
+    await this.nfceService?.emitirAposPagamento(venda.id)
 
     return {
       venda,
@@ -252,6 +262,12 @@ export class PagamentoService {
     if (status.pago) {
       const { venda: atualizada, consolidada } =
         await this.vendaRepository.consolidarPagamentoPix(venda.id)
+
+      // D3: só a chamada que de fato consolidou emite a nota. Reenvio do
+      // webhook e polling repetido caem aqui com `consolidada: false`.
+      if (consolidada) {
+        await this.nfceService?.emitirAposPagamento(venda.id)
+      }
 
       return { venda: atualizada, status, consolidada }
     }

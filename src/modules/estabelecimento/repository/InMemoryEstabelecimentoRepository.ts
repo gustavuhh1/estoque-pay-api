@@ -41,6 +41,7 @@ export class InMemoryEstabelecimentoRepository
       certificado_a1: null,
       certificado_a1_senha: null,
       emite_nfce: false,
+      nfce_ultimo_numero: 0,
       criado_em: new Date(),
     }
 

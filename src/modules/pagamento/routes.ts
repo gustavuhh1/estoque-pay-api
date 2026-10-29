@@ -20,6 +20,7 @@ import { criarAssinaturaService } from "@/modules/billing/service/criarAssinatur
 import { AbacatePayAssinaturaGateway } from "@/modules/billing/gateway/AbacatePayAssinaturaGateway"
 import type { IAssinaturaGateway } from "@/modules/billing/gateway/IAssinaturaGateway"
 import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
+import { criarNfceService } from "@/modules/nfce/service/criarNfceService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -64,7 +65,8 @@ export function pagamentoRoutes(
       new CaixaPrismaRepository(prisma),
       new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
-      gateway
+      gateway,
+      criarNfceService()
     )
     const pagamentoController = new PagamentoController(pagamentoService)
     const pixController = new PixController(pagamentoService)
