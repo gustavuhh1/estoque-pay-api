@@ -402,7 +402,7 @@ model Venda {
 
   // Integração AbacatePay
   abacatepay_payment_id String?   @unique // Correlaciona o webhook à venda
-  taxa_split            Decimal?  @db.Decimal(10, 2) // Taxa fixa retida pela plataforma
+  taxa_split            Decimal?  @db.Decimal(10, 2) // Taxa Pix de R$ 0,80 paga pelo consumidor (D1); nulo em dinheiro e cartão
   pago_em               DateTime?
 
   // Emissão NFCe "Invisível"
