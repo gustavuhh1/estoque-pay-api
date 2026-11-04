@@ -87,6 +87,7 @@ O cargo pertence ao **vínculo**, não ao usuário: fica em `MembroEstabelecimen
 - **RF01.4 - Redefinir Senha:** cadastrar nova senha após validar o token.
 - **RF01.5 - Gestão de Sessão:** emitir e validar a sessão nas requisições.
 - **RF01.6 - Logout:** encerrar a sessão e invalidar o acesso imediatamente.
+- **RF01.7 - Meu perfil e foto:** a pessoa vê seus dados (nome, e-mail, formas de login e as lojas em que tem vínculo, com o cargo) e edita o nome e a foto. A foto pode ser enviada (PNG, JPEG ou WebP, reduzida para 256 px, até ~100 KB, guardada no próprio usuário), removida ou trocada pela do Google. Quem entra pelo Google e **ainda não tem foto** passa a usar a do Google; uma foto enviada nunca é sobrescrita por um login. A foto aparece no cabeçalho, na barra lateral, na equipe, no histórico de vendas, nas movimentações de estoque e no turno do caixa.
 
 ### 2. RFs — Lojas e Multi-Tenant (RBAC por vínculo)
 

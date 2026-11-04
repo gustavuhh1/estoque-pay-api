@@ -6,8 +6,8 @@ import type {
 } from "./ICaixaRepository"
 
 const RELACOES_DO_TURNO = {
-  aberto_por: { select: { name: true } },
-  fechado_por: { select: { name: true } },
+  aberto_por: { select: { name: true, image: true } },
+  fechado_por: { select: { name: true, image: true } },
 } as const
 
 export class CaixaPrismaRepository implements ICaixaRepository {
