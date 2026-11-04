@@ -58,6 +58,7 @@ export function toPerfilResponse(perfil: Perfil) {
     lojas: perfil.estabelecimentos.map((m) => ({
       id: m.estabelecimento.id,
       nome: m.estabelecimento.nome,
+      cnpj: m.estabelecimento.cnpj,
       cargo: m.role,
     })),
   }

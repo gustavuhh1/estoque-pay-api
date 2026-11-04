@@ -16,7 +16,7 @@ export class PerfilPrismaRepository implements IPerfilRepository {
         createdAt: true,
         accounts: { select: { providerId: true, idToken: true } },
         estabelecimentos: {
-          select: { role: true, estabelecimento: { select: { id: true, nome: true } } },
+          select: { role: true, estabelecimento: { select: { id: true, nome: true, cnpj: true } } },
           orderBy: { createdAt: "asc" },
         },
       },

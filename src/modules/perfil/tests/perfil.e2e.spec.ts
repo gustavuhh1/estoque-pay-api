@@ -47,7 +47,7 @@ describe("Perfil (RF01.7) - E2E (DB Real)", () => {
       foto: null,
       metodos_login: ["EMAIL"],
       foto_google_disponivel: false,
-      lojas: [{ id: loja.id, nome: "Loja Perfil", cargo: "MANAGER" }],
+      lojas: [{ id: loja.id, nome: "Loja Perfil", cnpj: "11222333000181", cargo: "MANAGER" }],
     })
   })
 

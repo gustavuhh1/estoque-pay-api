@@ -35,6 +35,6 @@ export const perfilResponseSchema = z.object({
   foto_google_disponivel: z.boolean(),
   criado_em: z.date(),
   lojas: z.array(
-    z.object({ id: z.uuid(), nome: z.string(), cargo: z.enum(["ADMIN", "OWNER", "MANAGER", "CASHIER"]) })
+    z.object({ id: z.uuid(), nome: z.string(), cnpj: z.string(), cargo: z.enum(["ADMIN", "OWNER", "MANAGER", "CASHIER"]) })
   ),
 })

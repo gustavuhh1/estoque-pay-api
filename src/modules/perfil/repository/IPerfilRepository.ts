@@ -8,7 +8,7 @@ export interface Perfil {
   image: string | null
   createdAt: Date
   accounts: { providerId: string; idToken: string | null }[]
-  estabelecimentos: { role: Role; estabelecimento: { id: string; nome: string } }[]
+  estabelecimentos: { role: Role; estabelecimento: { id: string; nome: string; cnpj: string } }[]
 }
 
 /** `| undefined` explícito por causa do exactOptionalPropertyTypes do tsconfig. */
