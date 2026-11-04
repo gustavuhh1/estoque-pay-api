@@ -42,7 +42,7 @@ Detalhes de hospedagem em `Hospedagem_Render_Neon_Vercel.md`.
 
 | Módulo | Dentro do MVP | Fora do MVP |
 | --- | --- | --- |
-| Autenticação (IAM) | E-mail e senha, recuperação de senha, sessão e logout; cargos (Admin, Owner, Gestor, Caixa) por vínculo multi-loja. | Login com Google no front (a API já suporta), 2FA, Magic Links, outros provedores sociais. |
+| Autenticação (IAM) | E-mail e senha, login com Google, recuperação de senha, sessão e logout; cargos (Admin, Owner, Gestor, Caixa) por vínculo multi-loja. | 2FA, Magic Links, outros provedores sociais. |
 | Estoque | CRUD de produtos e categorias, movimentação manual com motivo, auditoria, alerta de estoque mínimo. | Previsão de demanda, integração com fornecedores. |
 | PDV e pagamentos | Busca, carrinho, dinheiro com troco, cartão de maquininha (registro manual), Pix integrado com taxa de R$ 0,80 paga pelo consumidor, cancelamento com estorno, abertura e fechamento de caixa. | TEF (integração automática com adquirentes), PIN de caixa. |
 | CRM | Cadastro de clientes, histórico de compras, produtos favoritos, cupons de fidelidade. | Campanhas de marketing automatizadas. |
@@ -82,7 +82,7 @@ O cargo pertence ao **vínculo**, não ao usuário: fica em `MembroEstabelecimen
 ### 1. RFs — Autenticação & IAM
 
 - **RF01.1 - Cadastro e Login (E-mail e Senha):** criar conta e autenticar com e-mail e senha.
-- **RF01.2 - Autenticação SSO (Google):** a API suporta login com Google (better-auth). O botão no front está fora desta entrega (ver [Fora do escopo](#fora-do-escopo)).
+- **RF01.2 - Autenticação SSO (Google):** cadastro e login com Google pelo botão "Continuar com Google" no Login e no Cadastro (better-auth, `POST /api/auth/sign-in/social`). Conta criada pelo Google cai no onboarding; conta existente vai para a seleção de lojas. Configuração das chaves no `.env.example` e em `Hospedagem_Render_Neon_Vercel.md`.
 - **RF01.3 - Solicitar Recuperação de Senha:** gerar e enviar por e-mail um link seguro de redefinição.
 - **RF01.4 - Redefinir Senha:** cadastrar nova senha após validar o token.
 - **RF01.5 - Gestão de Sessão:** emitir e validar a sessão nas requisições.
@@ -279,17 +279,6 @@ Só importam quando a loja liga a NFC-e (RN09 da Fase 2).
 ## Fora do escopo
 
 Além do que a tabela de escopo e a D4 listam:
-
-### Login com Google no front
-
-Cortado em 29/10/2026 por causa do prazo. A API já tem o provedor configurado (`socialProviders.google` em `src/lib/auth.ts`, lendo `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`); sem as variáveis, ele não é usado. O front não tem o botão e só entra por e-mail e senha.
-
-Para ativar depois:
-
-1. Criar o cliente OAuth no Google com a origem `https://estoquepay.vercel.app` e o redirect `https://estoquepay.vercel.app/api/auth/callback/google`.
-2. Preencher `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` na Render.
-3. No front, adicionar o botão no Login e no Cadastro chamando `POST /api/auth/sign-in/social` com `{ provider: "google", callbackURL: "<origem>/lojas" }`.
-4. Conferir que quem entra pelo Google sem loja cai no onboarding.
 
 ### Emissão real de NFC-e
 
