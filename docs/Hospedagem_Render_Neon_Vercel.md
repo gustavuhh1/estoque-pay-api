@@ -32,8 +32,13 @@ Consequências:
 ### 2. Render (API)
 
 1. Garanta que o `main` tem o código (ver "Antes de começar" abaixo).
-2. Em render.com: **New > Blueprint**, escolha este repositório. Ele lê o [`render.yaml`](../render.yaml).
-3. Preencha as variáveis marcadas `sync: false`. Os valores certos estão em [`.env.example`](../.env.example). As que importam agora:
+2. Em render.com: **New > Web Service**, conecte o repositório `estoque-pay-api` e preencha:
+   - **Branch:** `main` · **Language:** Docker · **Dockerfile Path:** `./Dockerfile`
+   - **Region:** Virginia (US East) · **Instance Type:** Free
+   - **Health Check Path** (em Advanced): `/health` · **Auto-Deploy:** On Commit
+   Não usamos Blueprint: num serviço criado por Blueprint as variáveis `sync: false` não podem ser trocadas depois, o que travava a inclusão das chaves do Google.
+3. Em **Environment Variables**, use **Add from .env** com as chaves abaixo (todas comentadas em [`.env.example`](../.env.example)). Valores fixos: `NODE_ENV=production`, `BREVO_SENDER_NAME=EstoquePay` e `PAGAMENTO_SIMULACAO_HABILITADA=true` (religa a simulação de Pix, que só existe com chave dev). As que dependem de você:
+   - `BETTER_AUTH_SECRET`: um valor longo e aleatório (`openssl rand -base64 32`). Trocar este valor encerra todas as sessões abertas.
    - `DATABASE_URL`: a do Neon (passo 1).
    - `BETTER_AUTH_URL`, `BASE_URL`, `APP_URL`: a **URL do front** na Vercel (ex.: `https://estoquepay.vercel.app`). Se ainda não existe, crie o projeto na Vercel primeiro só para saber o domínio.
    - `ABACATEPAY_API_KEY`: chave **dev**. **Nunca** a de produção.
@@ -84,7 +89,7 @@ Se o primeiro aviso chegar com a API hibernada, o timeout de 30 s da AbacatePay 
 
 1. Os PRs #83 a #87 e o desta etapa precisam estar em `development`.
 2. Abrir e mesclar o PR **`development` para `main`** (a `main` é só produção; a Render faz deploy dela). A proteção da `main` pede 2 aprovações do CODEOWNER, então o merge usa `--admin`.
-3. Só então criar o Blueprint na Render.
+3. Só então criar o Web Service na Render.
 
 ## Cold start e o cenário 17 da validação
 
@@ -114,4 +119,4 @@ A Render (plano grátis) não tem região em São Paulo; a API está em `virgini
 
 ## Segredos
 
-Ficam **só** nos painéis (Render, Neon, Vercel). O `.env` está no `.gitignore` e o `render.yaml` só tem os nomes das variáveis.
+Ficam **só** nos painéis (Render, Neon, Vercel). O `.env` está no `.gitignore`; o repositório só tem os nomes das variáveis (`.env.example`).
