@@ -45,8 +45,8 @@ Consequências:
    - `ABACATEPAY_WEBHOOK_SECRET`: um segredo longo que você inventa agora (o mesmo vai no painel da AbacatePay).
    - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`: para o e-mail de redefinir senha e de convite.
    - `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`: só se for usar o login Google.
-4. Anote a URL da API (ex.: `https://estoquepay-api.onrender.com`).
-5. **Smoke test:** `curl https://estoquepay-api.onrender.com/health` deve devolver `{"status":"ok"}` (a primeira chamada pode demorar ~1 min: é o cold start). Abra `/apidocs` para ver o Swagger.
+4. Anote a URL da API (ex.: `https://estoque-pay-api.onrender.com`).
+5. **Smoke test:** `curl https://estoque-pay-api.onrender.com/health` deve devolver `{"status":"ok"}` (a primeira chamada pode demorar ~1 min: é o cold start). Abra `/apidocs` para ver o Swagger.
 
 ### 3. Vercel (front): responsabilidade da sessão do front
 
@@ -55,8 +55,8 @@ O front precisa do proxy. Exemplo de `vercel.json` (ajuste o host da API):
 ```json
 {
   "rewrites": [
-    { "source": "/api/auth/:path*", "destination": "https://estoquepay-api.onrender.com/api/auth/:path*" },
-    { "source": "/api/:path*", "destination": "https://estoquepay-api.onrender.com/:path*" },
+    { "source": "/api/auth/:path*", "destination": "https://estoque-pay-api.onrender.com/api/auth/:path*" },
+    { "source": "/api/:path*", "destination": "https://estoque-pay-api.onrender.com/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
