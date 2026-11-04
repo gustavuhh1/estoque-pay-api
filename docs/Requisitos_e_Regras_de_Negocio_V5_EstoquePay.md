@@ -1,40 +1,74 @@
-# EstoquePay — Alinhamento de Requisitos (Versão 5)
+# EstoquePay — Requisitos e Regras de Negócio (V5)
 
-> Documento consolidado de Requisitos Funcionais, Regras de Negócio e Requisitos Não Funcionais (MVP Completo).
+> **Documento único de produto.** Reúne a visão, o escopo do MVP, os Requisitos Funcionais (RF), as Regras de Negócio (RN) e os Requisitos Não Funcionais (RNF). Substitui o `Escopo_MVP_EstoquePay.md`, o `Requisitos_EstoquePay_Completo.md`, o `Fluxo_e_Estudo_Emissao_NFCe.md` (API) e o `ESCOPO-FORA.md` (front), que foram apagados.
 >
-> **Atualização de 28/10/2026 — decisões de escopo (D1 a D4).** Onde o texto abaixo diverge destas decisões, **valem as decisões**. Os itens afetados estão marcados com *(D1)*, *(D2)*, *(D3)* ou *(D4)*.
->
-> - **D1 — Taxa de R$ 0,80 paga pelo consumidor, só no Pix.** O total cobrado em venda Pix é o total dos itens **mais R$ 0,80**. A taxa não existe em dinheiro nem em cartão de maquininha, e é discriminada na nota fiscal simulada e no registro da venda (`Venda.taxa_split`). Substitui a retenção da taxa do lojista via split (Fase 3 RF04.1 e Fase 5 RN02).
-> - **D2 — Assinatura Premium somente no cartão, processada pela AbacatePay em modo Dev.** R$ 30,00/mês ou R$ 299,90/ano, trial de 7 dias com cartão válido registrado antes da ativação. Pix não é aceito para assinatura. Ciclo completo: trial, cobrança recorrente, webhooks de status e modo restrito.
-> - **D3 — A emissão real de NFC-e está fora do escopo; a NFC-e é simulada.** Não há integração com Focus NFe, eNotas nem SEFAZ. Após a venda paga, com o Switch Fiscal ativo, o sistema gera, salva e permite imprimir um **espelho** da nota, sempre com o aviso "DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)". As issues #60 e #61 ficam paralisadas; a entrega é a issue #81.
-> - **D4 — Fora do escopo:** emissão fiscal real, o backlog de melhorias futuras (hardening), 2FA, PIN de caixa, DRE e relatórios contábeis.
+> Última revisão: 04/11/2026. O que está implementado, issue por issue, fica no `Status_Implementacao_vs_Issues.md`; riscos e dívida técnica conhecidos ficam no `Riscos_e_Pendencias.md`.
 
 ## Sumário
 
+- [Visão e escopo](#visão-e-escopo)
+- [Decisões de escopo (D1 a D4)](#decisões-de-escopo-d1-a-d4)
 - [Fase 1: Fundação (Autenticação, IAM e Configurações)](#fase-1-fundação-autenticação-iam-e-configurações)
 - [Fase 2: Gestão de Estoque](#fase-2-gestão-de-estoque)
 - [Fase 3: Core PDV & Pagamentos](#fase-3-core-pdv--pagamentos)
-- [Fase 4: CRM e Emissão NFC-e](#fase-4-crm-e-emissão-nfc-e)
+- [Fase 4: CRM e NFC-e simulada](#fase-4-crm-e-nfc-e-simulada)
 - [Fase 5: Assinatura e Meios de Pagamento (SaaS Billing)](#fase-5-assinatura-e-meios-de-pagamento-saas-billing)
+- [Inteligência financeira](#inteligência-financeira)
+- [Glossário fiscal (NCM e CFOP)](#glossário-fiscal-ncm-e-cfop)
+- [Fora do escopo](#fora-do-escopo)
+
+---
+
+## Visão e escopo
+
+**Problema.** Pequenos e médios comerciantes (mercearias, bodegas, docerias) não têm controle integrado entre estoque e pagamentos.
+
+**Objetivo.** Uma aplicação web única com controle de acesso, PDV, gestão de estoque, clientes e assinatura.
+
+**Público-alvo.** Donos, gerentes e operadores de caixa de estabelecimentos de pequeno e médio porte.
+
+**Arquitetura.** Dois repositórios independentes:
+
+| Peça | Tecnologia | Hospedagem |
+| --- | --- | --- |
+| Back-end (`estoque-pay-api`) | Node.js, Fastify 5, Prisma 7, Zod 4, better-auth, Vitest | Render (Docker) |
+| Banco | PostgreSQL | Neon |
+| Front-end (`estoque-pay-front`) | React 19, Vite, TypeScript, Tailwind CSS v4 (padrão shadcn/ui) | Vercel, com proxy de `/api` para a API |
+| Integrações | AbacatePay em modo Dev (Pix e assinatura no cartão), Brevo (e-mail) | — |
+
+Detalhes de hospedagem em `Hospedagem_Render_Neon_Vercel.md`.
+
+**Escopo do MVP por módulo**
+
+| Módulo | Dentro do MVP | Fora do MVP |
+| --- | --- | --- |
+| Autenticação (IAM) | E-mail e senha, login com Google, recuperação de senha, sessão e logout; cargos (Admin, Owner, Gestor, Caixa) por vínculo multi-loja. | 2FA, Magic Links, outros provedores sociais. |
+| Estoque | CRUD de produtos e categorias, movimentação manual com motivo, auditoria, alerta de estoque mínimo. | Previsão de demanda, integração com fornecedores. |
+| PDV e pagamentos | Busca, carrinho, dinheiro com troco, cartão de maquininha (registro manual), Pix integrado com taxa de R$ 0,80 paga pelo consumidor, cancelamento com estorno, abertura e fechamento de caixa. | TEF (integração automática com adquirentes), PIN de caixa. |
+| CRM | Cadastro de clientes, histórico de compras, produtos favoritos, cupons de fidelidade. | Campanhas de marketing automatizadas. |
+| NFC-e | **Simulada**: espelho da nota, sem valor fiscal, gerado após a venda paga. | Emissão real (Focus NFe, eNotas, SEFAZ). |
+| Configurações | Dados da loja (Nome, CNPJ, IE, Certificado A1), equipe e switch fiscal. | — |
+| Assinatura | Premium mensal (R$ 30,00) ou anual (R$ 299,90), só no cartão, trial de 7 dias, cobrança recorrente, webhooks de status, modo restrito. | Múltiplos níveis de plano, cupom na assinatura, boleto, nota fiscal de serviço. |
+| Inteligência financeira | Lucro bruto, trava anti-prejuízo e capital imobilizado no painel. | DRE, contas a pagar e receber, fluxo de caixa contábil. |
+
+---
+
+## Decisões de escopo (D1 a D4)
+
+Tomadas em 28/10/2026 e já incorporadas no texto das fases abaixo.
+
+- **D1 — A taxa de R$ 0,80 é paga pelo consumidor, só no Pix.** O total cobrado numa venda Pix é o total dos itens **mais R$ 0,80**. A taxa não existe em dinheiro nem em cartão de maquininha. Ela é gravada na venda (`Venda.taxa_split`) e discriminada na NFC-e simulada. Não há split nem retenção do valor do lojista.
+- **D2 — Assinatura Premium só no cartão**, processada pela AbacatePay em modo Dev: R$ 30,00/mês ou R$ 299,90/ano, trial de 7 dias com cartão válido registrado antes da ativação. Pix não é aceito para assinatura.
+- **D3 — A NFC-e é simulada.** Não há integração com Focus NFe, eNotas nem SEFAZ. Depois da venda paga, com o switch fiscal ligado, o sistema gera, salva e permite imprimir um espelho da nota, sempre com o aviso **"DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)"**.
+- **D4 — Fora do escopo:** emissão fiscal real, hardening de produção, 2FA, PIN de caixa, DRE e relatórios contábeis.
 
 ---
 
 ## Fase 1: Fundação (Autenticação, IAM e Configurações)
 
-### 1. Requisitos Funcionais (RFs) — Módulo: Autenticação & IAM
+### Glossário de cargos (Roles)
 
-*O que o sistema deve fazer em relação a acessos e identidades.*
-
-- **RF01.1 - Cadastro e Login (E-mail e Senha):** O sistema deve permitir que novos usuários criem contas nativas e se autentiquem utilizando E-mail e Senha de forma segura.
-- **RF01.2 - Autenticação SSO (Google):** O sistema deve permitir o cadastro e login de forma rápida e segura utilizando o Google SSO (Single Sign-On).
-- **RF01.3 - Solicitar Recuperação de Senha ("Esqueceu a senha"):** O sistema deve permitir que o usuário solicite a recuperação de acesso, gerando e enviando um token/link seguro para o seu e-mail cadastrado.
-- **RF01.4 - Redefinir Senha:** O sistema deve permitir que o usuário cadastre uma nova senha após a validação bem-sucedida do token de recuperação.
-- **RF01.5 - Gestão de Sessão:** O sistema deve emitir tokens de autenticação válidos e manter a sessão do usuário ativa nas requisições.
-- **RF01.6 - Realizar Logout:** O sistema deve permitir o encerramento da sessão ativa, invalidando imediatamente o token de acesso do usuário.
-
-### Glossário de Cargos (Roles)
-
-O schema (`enum Role`) é a fonte da verdade e usa nomes em inglês. Este documento usa os termos de negócio em português; a equivalência é fixa:
+O schema (`enum Role`) é a fonte da verdade e usa nomes em inglês. Este documento usa os termos de negócio em português:
 
 | Termo de negócio | Valor no schema |
 | --- | --- |
@@ -43,169 +77,209 @@ O schema (`enum Role`) é a fonte da verdade e usa nomes em inglês. Este docume
 | Gestor | `MANAGER` |
 | Caixa | `CASHIER` |
 
-O cargo não pertence ao usuário, e sim ao vínculo: fica em `MembroEstabelecimento.role`, então a mesma pessoa pode ser `OWNER` numa loja e `CASHIER` em outra.
+O cargo pertence ao **vínculo**, não ao usuário: fica em `MembroEstabelecimento.role`, então a mesma pessoa pode ser `OWNER` numa loja e `CASHIER` em outra.
 
-### 2. Requisitos Funcionais (RFs) — Módulo: Lojas e Multi-Tenant (RBAC por Vínculo)
+### 1. RFs — Autenticação & IAM
 
-*O que o sistema deve fazer em relação à gestão de estabelecimentos e permissões dinâmicas.*
+- **RF01.1 - Cadastro e Login (E-mail e Senha):** criar conta e autenticar com e-mail e senha.
+- **RF01.2 - Autenticação SSO (Google):** cadastro e login com Google pelo botão "Continuar com Google" no Login e no Cadastro (better-auth, `POST /api/auth/sign-in/social`). Conta criada pelo Google cai no onboarding; conta existente vai para a seleção de lojas. Configuração das chaves no `.env.example` e em `Hospedagem_Render_Neon_Vercel.md`.
+- **RF01.3 - Solicitar Recuperação de Senha:** gerar e enviar por e-mail um link seguro de redefinição.
+- **RF01.4 - Redefinir Senha:** cadastrar nova senha após validar o token.
+- **RF01.5 - Gestão de Sessão:** emitir e validar a sessão nas requisições.
+- **RF01.6 - Logout:** encerrar a sessão e invalidar o acesso imediatamente.
 
-- **RF02.1 - Criar Estabelecimento (Onboarding):** O sistema deve permitir que um usuário autenticado crie um novo estabelecimento do zero informando os dados iniciais.
-- **RF02.2 - Atribuição de Membro Owner:** Ao criar uma loja, o sistema deve vincular automaticamente o usuário criador àquele estabelecimento com o cargo de "Owner" através da tabela intermediária de membros.
-- **RF03.1 - Suporte Multi-Loja (Multi-Tenant N:N):** O sistema deve permitir que um mesmo usuário pertença a múltiplos estabelecimentos simultaneamente, podendo exercer papéis diferentes em cada loja (ex: Owner na Loja A e Caixa na Loja B).
-- **RF03.2 - Seleção de Contexto de Loja:** O sistema deve permitir que o usuário selecione qual estabelecimento deseja gerenciar no momento, carregando o dashboard e as permissões correspondentes.
-- **RF04.1 - Visualizar e Atualizar Dados da Loja:** O sistema deve exibir e permitir a atualização dos dados cadastrais, comerciais e fiscais da loja ativa (Nome, CNPJ, Inscrição Estadual e Certificado Digital A1).
+### 2. RFs — Lojas e Multi-Tenant (RBAC por vínculo)
 
-### 3. Requisitos Funcionais (RFs) — Módulo: Gestão de Funcionários
+- **RF02.1 - Criar Estabelecimento (Onboarding):** um usuário autenticado cria uma loja informando nome e CNPJ (validado).
+- **RF02.2 - Atribuição de Owner:** quem cria a loja vira `OWNER` dela automaticamente.
+- **RF03.1 - Multi-Loja (N:N):** um usuário pode pertencer a várias lojas, com cargos diferentes em cada uma.
+- **RF03.2 - Seleção de Contexto:** o usuário escolhe a loja ativa; a API recebe o contexto no header `x-estabelecimento-id`.
+- **RF04.1 - Dados da Loja:** visualizar e atualizar Nome, CNPJ, Inscrição Estadual e Certificado Digital A1.
 
-*O que o sistema deve fazer em relação à equipe e permissões (RBAC).*
+### 3. RFs — Gestão de Funcionários
 
-- **RF05.1 - Cadastrar Funcionário:** O sistema deve permitir que o `OWNER` ou `MANAGER` adicione um funcionário ao estabelecimento informando nome, e-mail e cargo (Role).
-- **RF05.2 - Listar Funcionários:** O sistema deve permitir a visualização em lista de todos os funcionários vinculados à loja ativa e seus respectivos papéis.
-- **RF05.3 - Editar Cargo (Role):** O sistema deve permitir alterar o cargo de um funcionário dentro do estabelecimento.
-- **RF05.4 - Excluir Funcionário:** O sistema deve permitir remover o vínculo (desvincular) de um funcionário ao estabelecimento.
+- **RF05.1 - Cadastrar Funcionário:** `OWNER` ou `MANAGER` adiciona funcionário por nome, e-mail e cargo.
+- **RF05.2 - Listar Funcionários:** membros da loja ativa e convites pendentes.
+- **RF05.3 - Editar Cargo.**
+- **RF05.4 - Excluir Funcionário:** remove o vínculo com a loja.
 
-### 4. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 1
+### 4. Regras de Negócio — Fase 1
 
-- **RN01 (Vínculo Silencioso):** O vínculo do funcionário ocorre de forma silenciosa via banco de dados sem envio de e-mails de convite, validando-se pelo login subsequente na plataforma.
-- **RN02 (Hierarquia):** Um Gestor (`MANAGER`) não pode excluir, editar ou rebaixar um Owner (`OWNER`); apenas o `OWNER` detém privilégios hierárquicos completos.
-- **RN03 (Loja Órfã):** É proibido excluir ou rebaixar o último `OWNER` de uma loja, garantindo que o estabelecimento nunca fique sem um dono.
-- **RN04/05 (Limites de Roles):** O cargo de Caixa (`CASHIER`) possui acesso estrito ao PDV. O Gestor (`MANAGER`) possui acesso à operação e equipe, mas é bloqueado em ações críticas (CNPJ, Certificado A1, Plano Premium e exclusão da loja).
-- **RN06 (Revogação de Token):** Ao remover um funcionário do estabelecimento, se o mesmo possuir sessão ativa, suas requisições futuras devem ser rejeitadas instantaneamente via middleware.
+- **RN01 - Vínculo automático:** se o e-mail já tem conta, o vínculo é criado na hora, sem convite. Se não tem, fica um convite pendente e um e-mail é enviado; o vínculo nasce sozinho quando a pessoa conclui o cadastro.
+- **RN02 - Hierarquia:** o Gestor não edita, não exclui nem rebaixa um Owner, e só atribui o cargo Caixa.
+- **RN03 - Loja órfã:** é proibido excluir ou rebaixar o último `OWNER` da loja.
+- **RN04 - Limites do Caixa:** o `CASHIER` usa o PDV, consulta as próprias vendas e abre e fecha o caixa. Identifica o cliente no balcão, mas não acessa estoque, equipe nem configurações.
+- **RN05 - Limites do Gestor:** o `MANAGER` opera a loja e a equipe, mas não altera CNPJ, Certificado A1, plano Premium, switch fiscal nem exclui a loja.
+- **RN06 - Revogação imediata:** ao remover um funcionário, as sessões dele são revogadas e as próximas requisições recebem 401.
 
 ---
 
 ## Fase 2: Gestão de Estoque
 
-### 1. Requisitos Funcionais (RFs) — Módulo: Produtos
+### 1. RFs — Produtos
 
-- **RF01.1 - Criar Produto:** O sistema deve permitir o cadastro de um novo produto informando campos obrigatórios (nome, preço de custo, preço de venda, tipo de medida, NCM e CFOP).
-- **RF02.2 - Listar Produtos:** O sistema deve permitir a listagem de todos os produtos pertencentes ao estabelecimento ativo.
-- **RF03.3 - Editar Produto:** O sistema deve permitir a alteração das informações cadastrais, comerciais e fiscais de um produto existente.
-- **RF04.4 - Excluir Produto (Hard Delete):** O sistema deve permitir a exclusão permanente de um produto do banco de dados, removendo também seu histórico.
-- **RF05.5 - Inativar Produto (Soft Delete):** O sistema deve permitir inativar um produto (`ativo = false`) para que ele pare de aparecer no PDV, mas mantenha seu histórico em vendas passadas.
-- **RF06.6 - Reativar Produto:** O sistema deve permitir que um produto inativado volte a ficar ativo para vendas, sujeito às travas de conformidade fiscal.
+- **RF01.1 - Criar Produto:** campos obrigatórios: nome, preço de custo, preço de venda e tipo de medida. NCM e CFOP são opcionais, e passam a ser **obrigatórios somente quando a emissão de NFC-e está ligada na loja** (RN09).
+- **RF02.2 - Listar Produtos** da loja ativa (inclui inativos).
+- **RF03.3 - Editar Produto:** dados cadastrais, comerciais e fiscais.
+- **RF04.4 - Excluir Produto:** some do cadastro. Produto nunca vendido é apagado de fato; produto já vendido é marcado como excluído (`deletado_em`) para não quebrar o histórico de vendas, e o código de barras é liberado. Para o usuário as duas situações são iguais (`204`).
+- **RF05.5 - Inativar Produto:** `ativo = false`; sai do PDV e mantém o cadastro e o histórico.
+- **RF06.6 - Reativar Produto:** volta a vender, sujeito à trava fiscal (RN09.2).
 
-### 2. Requisitos Funcionais (RFs) — Módulo: Categorias
+### 2. RFs — Categorias
 
-- **RF07.1 - Criar Categoria:** O sistema deve permitir a criação de novas etiquetas/categorias (ex: "Bebidas", "Frios").
-- **RF08.2 - Listar Categorias:** O sistema deve retornar a lista de todas as categorias criadas no estabelecimento.
-- **RF09.3 - Editar Categoria:** O sistema deve permitir alterar o nome de uma categoria existente.
-- **RF10.4 - Excluir Categoria:** O sistema deve permitir a exclusão de uma categoria sem que isso apague os produtos alocados nela.
-- **RF11.5 - Vincular Categoria (N:N):** O sistema deve permitir que um produto seja vinculado a múltiplas categorias simultaneamente.
+- **RF07.1 - Criar Categoria** (ex.: "Bebidas", "Frios").
+- **RF08.2 - Listar Categorias** com os produtos vinculados.
+- **RF09.3 - Editar Categoria** (nome).
+- **RF10.4 - Excluir Categoria** sem apagar os produtos.
+- **RF11.5 - Vínculo N:N:** um produto pode estar em várias categorias.
 
-### 3. Requisitos Funcionais (RFs) — Módulo: Movimentação e Auditoria
+### 3. RFs — Movimentação e Auditoria
 
-- **RF12.1 - Lançar Entrada Manual:** O sistema deve permitir que o usuário adicione quantidade ao estoque de um produto de forma manual.
-- **RF13.2 - Lançar Saída Manual:** O sistema deve permitir que o usuário remova quantidade do estoque de um produto de forma manual.
-- **RF14.3 - Exigência de Motivo:** O sistema deve exigir a seleção de um motivo obrigatório (ex: Reabastecimento, Descarte, Quebra) em qualquer lançamento manual.
-- **RF15.4 - Consultar Auditoria:** O sistema deve exibir um relatório listando todo o histórico de movimentações de um produto, mostrando data, quantidade, motivo e usuário responsável.
+- **RF12.1 - Entrada Manual** de quantidade.
+- **RF13.2 - Saída Manual** de quantidade.
+- **RF14.3 - Motivo obrigatório** em todo lançamento manual: Reabastecimento (entrada), Descarte, Perda, Vencimento (saída) ou Ajuste Manual (ambos). `VENDA` e `ESTORNO_VENDA` são reservados ao PDV.
+- **RF15.4 - Auditoria:** histórico por produto com data, quantidade, motivo e usuário responsável.
 
-### 4. Requisitos Funcionais (RFs) — Módulo: Alertas
+### 4. RFs — Alertas
 
-- **RF16.1 - Identificar Estoque Mínimo:** O sistema deve identificar automaticamente se a quantidade atual de um produto atingiu ou ficou abaixo da quantidade mínima configurada.
-- **RF17.2 - Listagem de Alerta:** O sistema deve fornecer uma consulta específica que retorne apenas os produtos com estoque baixo para alimentar o Dashboard.
+- **RF16.1 - Estoque mínimo:** identificar `quantidade_atual <= quantidade_minima`.
+- **RF17.2 - Listagem de alerta:** só os produtos ativos com estoque baixo, para o painel.
 
-### 5. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 2
+### 5. Regras de Negócio — Fase 2
 
-- **RN01 - Inativação vs. Exclusão:** Um produto inativo continua no banco com seu histórico, mas fica indisponível para vendas no PDV. A exclusão é permanente.
-- **RN02 - Exclusão de Categorias:** A exclusão de uma categoria apenas remove sua etiqueta dos produtos, mantendo os itens intactos.
-- **RN04 - Suporte a Frações:** O sistema suporta operações matemáticas com casas decimais (ex: 0.300 kg) para produtos fracionados.
-- **RN05 - Rastreabilidade Automática:** Nenhuma alteração de estoque ocorre sem gerar um registro imutável na tabela de auditoria (`MovimentacaoEstoque`).
-- **RN09 - Obrigatoriedade Fiscal Dinâmica (Switch NFC-e):** Se a NFC-e estiver desligada, NCM e CFOP são opcionais. Se a emissão de NFC-e estiver ligada na loja, passam a ditar a conformidade do produto.
-- **RN09.1 - Inativação de Segurança (Fallback):** Se a NFC-e estiver ligada e o usuário salvar um produto sem NCM ou CFOP, o sistema salva o registro para evitar perda de dados, mas força `ativo = false` automaticamente.
-- **RN09.2 - Trava de Reativação:** O sistema bloqueia qualquer tentativa de alterar `ativo = true` se NCM ou CFOP estiverem vazios e a loja estiver com NFC-e ativada.
-- **RNF01/02 - Schema & TDD:** Atualização do Prisma para suportar `ativo` e auditoria, com cobertura de testes unitários em Vitest.
+- **RN01 - Inativação vs. exclusão:** inativo continua cadastrado e fora do PDV; excluído some do cadastro (ver RF04.4).
+- **RN02 - Exclusão de categoria:** remove só a etiqueta dos produtos.
+- **RN04 - Frações:** até 3 casas decimais (ex.: 0,300 kg).
+- **RN05 - Rastreabilidade:** nenhuma alteração de saldo acontece sem um registro imutável em `MovimentacaoEstoque`, na mesma transação.
+- **RN09 - Obrigatoriedade fiscal condicionada ao switch NFC-e:** com a NFC-e **desligada**, NCM e CFOP são opcionais. Com a NFC-e **ligada** (`Estabelecimento.emite_nfce = true`), todo produto ativo precisa de NCM e CFOP.
+  - **RN09.1 - Inativação de segurança:** com a NFC-e ligada, salvar um produto sem NCM ou CFOP não bloqueia o cadastro, mas o produto fica `ativo = false` automaticamente.
+  - **RN09.2 - Trava de reativação:** com a NFC-e ligada, reativar produto sem NCM ou CFOP é recusado (`403 PRODUTO_SEM_CONFORMIDADE_FISCAL`).
+- **RNF01 - Testes:** regras cobertas por testes unitários e E2E em Vitest.
 
 ---
 
 ## Fase 3: Core PDV & Pagamentos
 
-### 1. Requisitos Funcionais (RFs) — Módulo: Gestão do Carrinho & PDV
+### 1. RFs — Carrinho & PDV
 
-- **RF01.1 - Buscar Produto:** O sistema deve permitir a busca de produtos no PDV por nome ou código de barras (EAN/GTIN).
-- **RF01.2 - Adicionar ao Carrinho:** O sistema deve permitir a adição de itens ao carrinho de compras com suporte a quantidades inteiras e fracionadas.
-- **RF01.3 - Cálculo Automático:** O sistema deve calcular automaticamente, em tempo real, o subtotal e o valor total da venda baseando-se nos itens do carrinho.
+- **RF01.1 - Buscar Produto** por nome (parcial) ou código de barras EAN/GTIN (exato). Produto inativo não aparece.
+- **RF01.2 - Adicionar ao Carrinho** com quantidades inteiras e fracionadas.
+- **RF01.3 - Cálculo automático** de subtotal e total, sempre com o preço lido do banco.
+- **RF01.4 - Histórico de vendas:** paginado, com filtros de status e período. Owner e Gestor veem a loja inteira; o Caixa vê só as vendas que ele registrou.
 
-### 2. Requisitos Funcionais (RFs) — Módulo: Processamento de Pagamentos
+### 2. RFs — Pagamentos
 
-- **RF02.1 - Pagar em Dinheiro:** O sistema deve permitir o registro manual de pagamento em dinheiro, calculando o troco automaticamente.
-- **RF02.2 - Pagar em Cartão:** O sistema deve permitir o registro manual para vendas pagas via maquininhas de cartão físicas.
-- **RF03.1 - Gerar QR Code (Pix):** O sistema deve se comunicar dinamicamente com a API do AbacatePay para gerar o QR Code Pix com o valor da compra.
-- **RF03.2 - Confirmação Automática (Webhook):** O sistema deve escutar o webhook do AbacatePay e aprovar a venda de forma automática assim que o pagamento for confirmado.
-- **RF04.1 - Cobrar a Taxa de Serviço no Pix *(D1)*:** Em vendas via Pix, o sistema deve somar a taxa fixa de serviço de R$ 0,80 ao total dos itens, de modo que o consumidor paga `total dos itens + R$ 0,80`. A taxa é gravada na venda (`Venda.taxa_split`), vai no valor do QR Code gerado e é discriminada na nota fiscal simulada. Não se aplica a dinheiro nem a cartão de maquininha.
-  - **Análise do split (28/10/2026):** a documentação pública da AbacatePay (índice `llms.txt`) não tem split, marketplace nem campo para o integrador declarar taxa própria; o `platformFee` da resposta é só a tarifa que a AbacatePay desconta. Por isso a taxa é somada ao valor da cobrança e cai na conta dona da chave de API. A regra de negócio (consumidor paga R$ 0,80 no Pix e isso consta na nota) vale independente do mecanismo de repasse.
-  - **Registro:** `Venda.total_venda` guarda os itens menos o cupom, `Venda.taxa_split` guarda os R$ 0,80 e o valor do QR Code é `total_venda + taxa_split`.
+- **RF02.1 - Dinheiro:** registro manual com cálculo do troco.
+- **RF02.2 - Cartão (débito ou crédito):** registro manual da venda feita na maquininha.
+- **RF03.1 - Pix:** gerar o QR Code pela AbacatePay com o valor cobrado (itens + taxa).
+- **RF03.2 - Confirmação automática:** webhook e consulta de status (polling) consolidam a venda quando a AbacatePay confirma o pagamento.
+- **RF04.1 - Taxa de R$ 0,80 paga pelo consumidor no Pix (D1):** o consumidor paga `total dos itens − cupom + R$ 0,80`. Não se aplica a dinheiro nem a cartão.
+  - **Registro:** `Venda.total_venda` guarda os itens menos o cupom, `Venda.taxa_split` guarda os R$ 0,80 e o QR Code sai com `total_venda + taxa_split`. Relatórios de faturamento, CRM e ticket médio usam `total_venda`, sem a taxa.
+  - **Mecanismo:** a AbacatePay não tem split nem campo de taxa do integrador, então a taxa é somada ao valor da cobrança. A regra de negócio vale independente de como o valor é repassado.
 
-### 3. Requisitos Funcionais (RFs) — Módulo: Pós-Venda e Turnos
+### 3. RFs — Pós-venda e Turnos
 
-- **RF05.1 - Cancelar Venda:** O sistema deve permitir o cancelamento de uma venda finalizada, alterando seu status no histórico.
-- **RF05.2 - Estorno de Estoque:** Ao confirmar um cancelamento, o sistema deve devolver automaticamente as quantidades dos produtos para o estoque.
-- **RF06.1 - Abertura de Caixa (Opcional):** O sistema deve permitir que o gestor ou dono registre a abertura do turno informando o fundo de caixa inicial.
-- **RF06.2 - Fechamento de Caixa (Opcional):** O sistema deve permitir o encerramento do turno com a declaração do valor final em gaveta.
+- **RF05.1 - Cancelar Venda** paga.
+- **RF05.2 - Estorno de estoque:** o cancelamento devolve as quantidades ao estoque.
+- **RF06.1 - Abrir Caixa:** registrar o fundo de troco inicial. **Qualquer cargo** abre.
+- **RF06.2 - Fechar Caixa:** declarar o valor final em gaveta. **Qualquer cargo** fecha.
 
-### 4. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 3
+### 4. Regras de Negócio — Fase 3
 
-- **RN01 - Baixa Postergada:** Produtos no carrinho não deduzem estoque. A baixa ocorre estritamente no momento em que a venda é consolidada e paga.
-- **RN02 - Segurança de Cancelamento:** O cancelamento de vendas concluídas é autorizado unicamente a usuários com cargo `OWNER` ou `MANAGER` (bloqueado para `CASHIER`). O autor e a data ficam registrados em `Venda.cancelada_por_id` / `Venda.cancelada_em`.
-- **RN03 - Auditoria de Devolução:** O cancelamento gera um registro automatizado de entrada na tabela `MovimentacaoEstoque` com o motivo "Estorno/Cancelamento de Venda".
-- **RN04 - Segurança de Turno:** O turno é por **loja**: enquanto houver um `ABERTO`, ninguém abre outro (`409 TURNO_JA_ABERTO`). **Qualquer cargo abre e fecha**, inclusive `CASHIER` — decisão registrada na issue #54, que substituiu a restrição a `OWNER`/`MANAGER` do texto original. A unicidade do turno aberto é garantida no banco por índice parcial (`WHERE status = 'ABERTO'`), não apenas por validação de serviço.
-- **RNF01 - Integridade Transacional:** O fechamento da venda e a dedução do estoque ocorrem em transação atômica única no Prisma (`$transaction`). Se houver falha, a venda é desfeita.
-- **RNF02 - Segurança de Webhooks:** A rota de webhook do AbacatePay valida assinatura criptográfica para bloquear requisições falsas.
+- **RN01 - Baixa postergada:** o carrinho não mexe no estoque; a baixa acontece só quando a venda é paga.
+- **RN01.1 - Confirmação manual:** dinheiro e cartão viram `PAGO` pela ação do operador no PDV. Pix nunca é confirmado manualmente, só pela AbacatePay.
+- **RN02 - Cancelamento restrito:** só `OWNER` e `MANAGER` cancelam venda (`403 ROLE_CANNOT_CANCEL_VENDA` para o Caixa). Autor e data ficam em `Venda.cancelada_por_id` e `Venda.cancelada_em`. Só venda paga pode ser cancelada, e uma vez só.
+- **RN03 - Auditoria de devolução:** o cancelamento grava uma ENTRADA com motivo `ESTORNO_VENDA` e mantém a SAÍDA original.
+- **RN04 - Turno por loja, aberto por qualquer cargo:** o turno é da loja, não da pessoa. Enquanto houver um turno `ABERTO`, ninguém abre outro (`409 TURNO_JA_ABERTO`). **Owner, Gestor e Caixa abrem e fecham**; quem abriu e quem fechou ficam registrados separadamente (`aberto_por_id`, `fechado_por_id`). Vender exige turno aberto (`409 TURNO_FECHADO`); cancelar não exige. A unicidade é garantida no banco por índice parcial (`WHERE status = 'ABERTO'`).
+- **RNF01 - Integridade transacional:** venda, itens, baixa de estoque e auditoria numa única `$transaction`. Se qualquer item falhar, nada é gravado.
+- **RNF02 - Segurança do webhook:** o webhook da AbacatePay valida o segredo na query (`?webhookSecret=`) e a assinatura HMAC do corpo; o evento é só gatilho e o status é confirmado consultando a AbacatePay. O processamento é idempotente.
 
 ---
 
-## Fase 4: CRM e Emissão NFC-e
+## Fase 4: CRM e NFC-e simulada
 
-### 1. Requisitos Funcionais (RFs) — Módulo: CRM (Gestão de Clientes)
+### 1. RFs — CRM
 
-- **RF01.1 - Cadastrar Cliente:** Permitir o cadastro de clientes armazenando CPF, Nome, Telefone, Observação e Data de Nascimento.
-- **RF01.2 - Listar Clientes:** Exibir a listagem completa de clientes registrados no estabelecimento.
-- **RF01.3 - Visualizar Cliente:** Exibir detalhes e observações de um cliente específico.
-- **RF01.4 - Atualizar Cliente:** Permitir a edição dos dados cadastrais do cliente.
-- **RF02.1 - Vincular Histórico de Compras:** Indexar automaticamente as compras do PDV ao perfil do cliente.
-- **RF02.2 - Inteligência de Dados:** Calcular estatísticas de consumo e produtos favoritos do cliente.
-- **RF02.3 - Programa de Fidelidade:** Suportar emissão e resgate de cupons de fidelidade atrelados ao cliente. Modelado em `Cupom`: código único por loja, valor de desconto, validade opcional (`expira_em`), e baixa no resgate via `resgatado_em` + `venda_id` (que é único, então um cupom só pode ser consumido em uma venda). `cliente_id` nulo representa cupom genérico da loja, não nominal.
+- **RF01.1 - Cadastrar Cliente:** CPF (validado) e Nome obrigatórios; Telefone, Data de Nascimento e Observação opcionais (Premium). CPF único por loja.
+- **RF01.2 - Listar Clientes** com busca por nome ou CPF.
+- **RF01.3 - Visualizar Cliente.**
+- **RF01.4 - Atualizar Cliente.**
+- **RF02.1 - Histórico de compras:** a venda do PDV pode ser vinculada ao cliente.
+- **RF02.2 - Inteligência:** total de compras, valor gasto, ticket médio e produtos favoritos (só vendas pagas).
+- **RF02.3 - Fidelidade:** cupons nominais ou genéricos da loja, com código único, valor de desconto e validade opcional. O resgate acontece na venda, uma vez só; cancelar a venda devolve o cupom.
 
-### 2. Requisitos Funcionais (RFs) — Módulo: Emissão NFC-e (Fiscal)
+### 2. RFs — NFC-e simulada (D3)
 
-> **Escopo *(D3)*:** a emissão **real** está fora do escopo. O que se entrega é a **NFC-e simulada** (issue #81). Os RFs abaixo marcados como *paralisados* continuam descritos como referência para uma evolução futura, sem implementação prevista.
+- **RF05.1 - Gerar o espelho:** após a venda paga, com o switch fiscal ligado e a loja Premium, o sistema gera e salva uma nota simulada.
+- **RF05.2 - Conteúdo:** dados da loja (nome, CNPJ, IE), itens (nome, quantidade, preço unitário, total), desconto de cupom, **linha da taxa de R$ 0,80 quando a venda é Pix**, forma de pagamento, CPF do consumidor ou "Consumidor Não Identificado", data e hora e numeração sequencial por loja.
+- **RF05.3 - Consultar e imprimir:** listar as notas da loja, consultar uma nota e abrir a versão imprimível. Owner e Gestor podem reemitir uma nota que falhou.
 
-- **RF03.1 - Disparar Emissão Assíncrona *(paralisado, D3)*:** Após pagamento confirmado, se a chave de NFC-e estiver ligada, o sistema compila os dados e envia requisição JSON em background para a API parceira (Focus NFe/eNotas). Issue #60.
-- **RF04.1 - Escutar Retorno (Webhook) *(paralisado, D3)*:** Receber a resposta da API terceira assim que a SEFAZ autorizar a nota. Issue #61.
-- **RF04.2 - Armazenamento de Links *(paralisado, D3)*:** Atualizar o status da venda e salvar unicamente as URLs seguras de download de PDF e XML no banco. Issue #61.
-- **RF05.1 - Gerar o Espelho da NFC-e Simulada *(D3)*:** Após a venda paga, com o Switch Fiscal ativo (pre-check da #59, que exige Premium), o sistema gera uma nota simulada e a salva. Issue #81.
-- **RF05.2 - Conteúdo do Espelho *(D3)*:** Dados da loja (nome, CNPJ, IE), itens (nome, quantidade, preço unitário, total), **linha da taxa de R$ 0,80 quando a venda foi Pix (D1)**, forma de pagamento, CPF do consumidor ou "Consumidor Não Identificado", data/hora e numeração sequencial simulada.
-- **RF05.3 - Consultar e Imprimir *(D3)*:** O sistema lista as notas simuladas da loja, consulta uma nota e entrega uma versão imprimível.
+**Fluxo de uma venda com NFC-e simulada**
 
-### 3. Regras de Negócio (RN) e Não Funcionais (RNF) — Fase 4
+1. O caixa finaliza a venda (dinheiro, cartão ou Pix confirmado).
+2. Se a loja é Premium e o switch fiscal está ligado, a API monta o espelho com os dados da loja, dos itens e do consumidor.
+3. A nota recebe o próximo número da loja e uma chave de acesso fictícia (`SIMULADO` + dígitos), e é salva na própria venda.
+4. A tela do PDV mostra a nota com o aviso de simulação, pronta para imprimir.
 
-- **RN01 - Pre-check de Conformidade:** A geração da nota (simulada, *D3*) só ocorre se a loja possuir o Plano Premium ativo, o Switch de NFC-e ligado e cumprir os requisitos prévios (Certificado A1, CNPJ/IE, sem produtos ativos sem NCM/CFOP).
-- **RN02 - Processamento Assíncrono:** A geração da nota ocorre de forma invisível no servidor, sem atrasar a tela do caixa, e uma falha ao gerá-la **não desfaz a venda** já paga.
-- **RN03 - CPF Opcional:** Informar CPF na venda é opcional; se vazio, a nota é emitida como "Consumidor Não Identificado".
-- **RN04 - Terceirização Fiscal Absoluta *(paralisada, D3)*:** É proibido gerar XMLs manualmente ou comunicar-se diretamente com a SEFAZ via SOAP, delegando tudo à API parceira. Como não há emissão real, o espelho é apenas um documento de demonstração: **não é XML fiscal e não consulta a SEFAZ**.
-- **RN05 - Aviso de Simulação Obrigatório *(D3)*:** Todo documento gerado (resposta da API, tela e impressão) exibe de forma visível o texto **"DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)"**. Chave de acesso, protocolo e QR Code, se existirem, são fictícios e identificados como simulação; o documento não aponta para consulta de SEFAZ real nem imita um documento oficial de forma enganosa.
-- **RNF01 - Tolerância a Falhas *(paralisado, D3)*:** Se a API terceira estiver fora do ar, o sistema marca o status como ERRO e permite reenvio posterior pelo painel, sem travar o PDV.
+### 3. Regras de Negócio — Fase 4
+
+- **RN01 - Pre-check do switch fiscal:** ligar a NFC-e exige plano Premium, Certificado A1 com senha, IE preenchida e nenhum produto ativo sem NCM ou CFOP. Desligar é sempre permitido. Só o Owner altera.
+- **RN02 - Geração sem travar o caixa:** a nota é gerada fora da transação da venda. Uma falha ao gerá-la **não desfaz a venda**: a venda fica com `nfe_status = ERRO` e pode ser reemitida.
+- **RN03 - CPF opcional:** sem cliente, a nota sai como "Consumidor Não Identificado".
+- **RN04 - Sem documento fiscal:** o espelho não é XML fiscal, não consulta a SEFAZ e não imita um documento oficial de forma enganosa. Não há protocolo nem QR Code de consulta.
+- **RN05 - Aviso obrigatório:** toda saída (resposta da API, tela e impressão) exibe **"DOCUMENTO SEM VALOR FISCAL — SIMULAÇÃO (emissão real fora do escopo do projeto)"**.
+- **RN06 - Loja sem NFC-e:** na loja Free ou com o switch desligado, o PDV entrega um comprovante de venda "não fiscal".
 
 ---
 
 ## Fase 5: Assinatura e Meios de Pagamento (SaaS Billing)
 
-### 1. Requisitos Funcionais (RFs) — Módulo: Assinaturas & Billing
+### 1. RFs — Assinaturas & Billing
 
-- **RF01.1 - Seleção de Plano:** O sistema deve exibir as opções de assinatura do plano Premium (R$ 30,00 mensais ou R$ 299,90 anuais) na interface de configurações.
-- **RF01.2 - Onboarding com Trial (7 Dias):** O sistema deve permitir que novos usuários ativem o período de testes de 7 dias gratuitos do plano Premium, exigindo obrigatoriamente o registro prévio de um **cartão de crédito** válido através do AbacatePay *(D2: a assinatura não aceita Pix)*. O cartão é tokenizado no navegador e o backend nunca o recebe.
-- **RF01.3 - Cobrança Recorrente:** O sistema deve integrar-se com o AbacatePay para processar automaticamente as cobranças recorrentes das assinaturas utilizando o meio de pagamento tokenizado.
-- **RF01.4 - Gestão de Status da Assinatura:** O sistema deve escutar os webhooks do AbacatePay para atualizar em tempo real o status da assinatura do estabelecimento (ativa, em trial, inadimplente ou cancelada).
+- **RF01.1 - Planos:** exibir o Premium a R$ 30,00/mês ou R$ 299,90/ano.
+- **RF01.2 - Trial de 7 dias com cartão:** ativar o trial exige registrar um **cartão de crédito** válido no checkout da AbacatePay. Pix não é aceito. O cartão é coletado na página da AbacatePay; o backend nunca o recebe.
+- **RF01.3 - Cobrança recorrente:** feita pela AbacatePay com o cartão registrado.
+- **RF01.4 - Status por webhook:** o status da assinatura (trial, ativa, inadimplente, cancelada) é atualizado pelos webhooks da AbacatePay.
+- **RF01.5 - Cancelar assinatura:** o Owner cancela na hora; a loja volta ao Free.
 
-### 2. Regras de Negócio (RN) — Fase 5
+### 2. Regras de Negócio — Fase 5
 
-- **RN00 - Plano Derivado (fonte única da verdade):** O plano não é uma coluna do `Estabelecimento`. Ele é **derivado** de `Assinatura.status`: vale PREMIUM apenas em `TRIALING` ou `ACTIVE`; loja sem assinatura, ou com status `PAST_DUE`/`CANCELED`, é tratada sob os limites do Free. Isso evita que um campo `plano` e o status da assinatura divirjam durante inadimplência.
-- **RN01 - Limites Estritos do Plano Free:** Lojas no plano Free possuem travas operacionais rígidas: limite máximo de 50 produtos cadastrados ativos, máximo de 3 membros na equipe (contando obrigatoriamente o `OWNER`), CRM restrito exclusivamente aos campos de CPF e Nome, e emissão de NFC-e totalmente desativada.
-- **RN02 - Taxa Pix no PDV *(D1)*:** O plano Premium não isenta a venda Pix da taxa fixa de R$ 0,80, que é **paga pelo consumidor** (total dos itens + R$ 0,80) e não retida do lojista. Vale só para Pix; não existe em dinheiro nem em cartão de maquininha. Ver Fase 3, RF04.1.
-- **RN03 - Comportamento em Downgrade / Inadimplência (Opção B):** Se a assinatura expirar ou o pagamento falhar, a loja não perde o acesso ao painel, mas entra em modo restrito: a NFC-e é desligada imediatamente, e o sistema bloqueia o cadastro de *novos* produtos ou funcionários caso a contagem atual ultrapasse os limites do plano Free.
-- **RN04 - Exigência de Pagamento no Trial:** É proibido ativar os 7 dias gratuitos de teste sem que o AbacatePay confirme o registro de um meio de pagamento válido vinculado ao cliente.
+- **RN00 - Plano derivado:** o plano não é coluna do `Estabelecimento`; ele vem de `Assinatura.status`. É Premium só em `TRIALING` ou `ACTIVE`. Sem assinatura, `PAST_DUE` ou `CANCELED`, valem os limites do Free.
+- **RN01 - Limites do Free:** até 50 produtos ativos, até 3 membros na equipe (contando o Owner e os convites pendentes), CRM só com CPF e Nome e NFC-e desligada. Estourar um limite responde `409` (`PLANO_LIMITE_PRODUTOS`, `PLANO_LIMITE_MEMBROS`, `PLANO_RECURSO_PREMIUM`).
+- **RN02 - Taxa Pix no Premium:** o Premium não isenta a taxa de R$ 0,80 do Pix, que continua paga pelo consumidor (ver RF04.1 da Fase 3).
+- **RN03 - Modo restrito:** se a assinatura vence ou o pagamento falha, a loja mantém o acesso ao painel, a NFC-e é desligada na hora e só os cadastros **novos** acima dos limites do Free são bloqueados.
+- **RN04 - Trial exige pagamento confirmado:** a assinatura só é gravada quando a AbacatePay confirma o cartão; abrir o checkout não muda o plano.
 
-### 3. Requisitos Não Funcionais (RNF) — Fase 5
+### 3. RNF — Fase 5
 
-- **RNF01 - Atualização do Schema (Assinaturas e Membros):** O modelo de dados do Prisma deve conter a tabela `MembrosEstabelecimento` para suportar vínculos multi-loja com papéis independentes, além do controle de assinaturas.
-- **RNF02 - Segurança de Dados Sensíveis:** O sistema é estritamente proibido de armazenar dados sensíveis de cartões de crédito localmente, delegando a custódia integralmente ao AbacatePay (conformidade de segurança).
+- **RNF01 - Schema:** `MembroEstabelecimento` para vínculos multi-loja e `Assinatura` para o controle do plano.
+- **RNF02 - Dados de cartão:** proibido armazenar dados de cartão; a custódia é toda da AbacatePay.
+
+---
+
+## Inteligência financeira
+
+Baseada no `preco_custo` dos produtos e entregue no painel do front:
+
+- **Lucro bruto** por período (preço de venda − custo dos itens vendidos).
+- **Trava anti-prejuízo:** o cadastro do produto avisa e bloqueia preço de venda abaixo do custo.
+- **Capital imobilizado:** valor do estoque a preço de custo.
+
+---
+
+## Glossário fiscal (NCM e CFOP)
+
+Só importam quando a loja liga a NFC-e (RN09 da Fase 2).
+
+- **NCM (Nomenclatura Comum do Mercosul):** código de 8 dígitos que diz ao governo **o que** está sendo vendido e define a tributação (ex.: bebida alcoólica paga mais que arroz). O lojista não inventa o número: ele vem na nota fiscal de compra do fornecedor.
+- **CFOP (Código Fiscal de Operações e Prestações):** código de 4 dígitos que diz **que operação** é (venda, devolução, doação) e para onde vai (dentro ou fora do estado). Para mercearias e docerias, quase todas as vendas usam **5102** (venda de mercadoria de terceiros dentro do estado).
+
+---
+
+## Fora do escopo
+
+Além do que a tabela de escopo e a D4 listam:
+
+### Emissão real de NFC-e
+
+As issues #60 e #61 da API descreviam a integração com Focus NFe/eNotas e o retorno da SEFAZ. Ficam fora do projeto (D3). A NFC-e simulada usa a interface `INfceEmissor`, então uma emissão real poderia ser plugada no futuro sem mexer no fluxo de venda.
