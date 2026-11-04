@@ -1,4 +1,5 @@
 ---
+title: EstoquePay — Modelo de dados (fonte da verdade: prisma/schema.prisma, revisado em 04/11/2026)
 config:
   layout: elk
   theme: forest
@@ -6,6 +7,8 @@ config:
 erDiagram
     ESTABELECIMENTO ||--o{ MEMBRO_ESTABELECIMENTO : has
     USER ||--o{ MEMBRO_ESTABELECIMENTO : is_member
+    ESTABELECIMENTO ||--o{ CONVITE_FUNCIONARIO : has
+    USER ||--o{ CONVITE_FUNCIONARIO : invites
     ESTABELECIMENTO ||--o| ASSINATURA : has
     ESTABELECIMENTO ||--o{ CLIENTE : has
     ESTABELECIMENTO ||--o{ PRODUTO : has
@@ -17,17 +20,18 @@ erDiagram
     USER ||--o{ SESSION : has
     USER ||--o{ ACCOUNT : has
     USER ||--o{ TURNO_CAIXA : opens
+    USER ||--o{ TURNO_CAIXA : closes
     USER ||--o{ VENDA : operates
     USER ||--o{ VENDA : cancels
     USER ||--o{ MOVIMENTACAO_ESTOQUE : makes
     PRODUTO ||--o{ MOVIMENTACAO_ESTOQUE : has
     CLIENTE ||--o{ VENDA : makes
-    CLIENTE ||--o{ CUPOM : redeems
+    CLIENTE ||--o{ CUPOM : owns
     TURNO_CAIXA ||--o{ VENDA : contains
     PRODUTO }o--o{ CATEGORIA : belongs_to_many
     PRODUTO ||--o{ ITEM_VENDA : sold_in
     VENDA ||--o{ ITEM_VENDA : contains
-    VENDA ||--o| CUPOM : redeemed_in
+    VENDA ||--o| CUPOM : redeems
 
     ESTABELECIMENTO {
         string id PK
@@ -35,8 +39,9 @@ erDiagram
         string cnpj UK
         string ie
         string certificado_a1
-        string certificado_a1_senha
-        boolean emite_nfce
+        string certificado_a1_senha "criptografada"
+        boolean emite_nfce "switch fiscal"
+        int nfce_ultimo_numero "contador da NFC-e simulada"
         datetime criado_em
     }
     ASSINATURA {
@@ -44,7 +49,7 @@ erDiagram
         string estabelecimento_id FK,UK
         string abacatepay_sub_id UK
         string abacatepay_customer_id
-        string metodo_pagamento_id
+        string metodo_pagamento_id "token, nunca o cartão"
         enum status "TRIALING|ACTIVE|PAST_DUE|CANCELED"
         enum tipo_plano "MENSAL|ANUAL"
         datetime trial_expira_em
@@ -69,27 +74,30 @@ erDiagram
         datetime createdAt
         datetime updatedAt
     }
+    CONVITE_FUNCIONARIO {
+        string id PK
+        string email
+        string estabelecimentoId FK
+        enum role "ADMIN|OWNER|MANAGER|CASHIER"
+        string criadoPorId FK
+        datetime createdAt
+        datetime aceitoEm
+    }
     SESSION {
         string id PK
         datetime expiresAt
         string token UK
-        datetime createdAt
-        datetime updatedAt
         string ipAddress
         string userAgent
         string userId FK
+        datetime createdAt
+        datetime updatedAt
     }
     ACCOUNT {
         string id PK
         string accountId
         string providerId
         string userId FK
-        string accessToken
-        string refreshToken
-        string idToken
-        datetime accessTokenExpiresAt
-        datetime refreshTokenExpiresAt
-        string scope
         string password
         string issuer
         datetime createdAt
@@ -100,17 +108,15 @@ erDiagram
         string identifier
         string value
         datetime expiresAt
-        datetime createdAt
-        datetime updatedAt
     }
     CLIENTE {
         string id PK
         string estabelecimento_id FK
         string nome
-        string cpf "unique por loja (estabelecimento_id + cpf)"
-        string telefone
-        datetime data_nascimento
-        string observacao
+        string cpf "único por loja"
+        string telefone "Premium"
+        datetime data_nascimento "Premium"
+        string observacao "Premium"
         int pontos_fidelidade
         datetime criado_em
         datetime atualizado_em
@@ -119,7 +125,7 @@ erDiagram
         string id PK
         string estabelecimento_id FK
         string cliente_id FK "nulo = cupom genérico da loja"
-        string codigo "unique por loja (estabelecimento_id + codigo)"
+        string codigo "único por loja"
         decimal valor_desconto
         datetime expira_em
         datetime resgatado_em
@@ -130,22 +136,23 @@ erDiagram
         string id PK
         string estabelecimento_id FK
         string nome
-        string ean_gtin
+        string ean_gtin "único por loja"
         enum tipo_medida "UNIDADE|FRACIONADO_KG"
         decimal preco_custo
         decimal preco_venda
-        decimal quantidade_atual
-        decimal quantidade_minima
-        string ncm
-        string cfop
+        decimal quantidade_atual "3 casas"
+        decimal quantidade_minima "3 casas"
+        string ncm "obrigatório só com NFC-e ligada"
+        string cfop "obrigatório só com NFC-e ligada"
         boolean ativo
+        datetime deletado_em "exclusão de produto já vendido"
         datetime criado_em
         datetime atualizado_em
     }
     CATEGORIA {
         string id PK
         string estabelecimento_id FK
-        string nome "unique por loja (estabelecimento_id + nome)"
+        string nome "único por loja"
         datetime criado_em
         datetime atualizado_em
     }
@@ -162,8 +169,9 @@ erDiagram
     }
     TURNO_CAIXA {
         string id PK
-        string estabelecimento_id FK
-        string usuario_id FK
+        string estabelecimento_id FK "um ABERTO por loja"
+        string aberto_por_id FK "qualquer cargo"
+        string fechado_por_id FK "qualquer cargo"
         decimal valor_abertura
         decimal valor_fechamento
         enum status "ABERTO|FECHADO"
@@ -176,16 +184,18 @@ erDiagram
         string usuario_id FK
         string cliente_id FK
         string turno_id FK
-        decimal total_venda
+        decimal total_venda "itens - cupom, sem a taxa"
         enum metodo_pagamento "PIX_ABACATEPAY|DINHEIRO|DEBITO|CREDITO"
         enum status_pagamento "PENDENTE|PAGO|CANCELADO"
         string abacatepay_payment_id UK
-        decimal taxa_split
+        decimal taxa_split "R$ 0,80 pago pelo consumidor, só Pix"
         datetime pago_em
         enum nfe_status "PROCESSANDO|AUTORIZADA|ERRO"
-        string nfe_url_pdf
-        string nfe_url_xml
-        string chave_de_acesso
+        string nfe_url_pdf "não usado (D3)"
+        string nfe_url_xml "não usado (D3)"
+        int nfe_numero "único por loja"
+        json nfe_espelho "NFC-e simulada"
+        string chave_de_acesso "fictícia"
         string nfe_erro_mensagem
         int nfe_tentativas
         datetime nfe_enviada_em
