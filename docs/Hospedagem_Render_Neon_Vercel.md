@@ -65,6 +65,8 @@ No console do Google, em credenciais OAuth, cadastre:
 - **Origem JavaScript autorizada:** a URL do front.
 - **URI de redirecionamento:** `https://<front>.vercel.app/api/auth/callback/google`.
 
+Depois preencha `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` na Render e ligue o botão no front com `VITE_GOOGLE_LOGIN=true` (no `.env.production` ou nas variáveis da Vercel), seguido de um novo deploy do front.
+
 ### 5. AbacatePay (modo dev)
 
 No painel da AbacatePay (modo dev), crie **um** webhook:
