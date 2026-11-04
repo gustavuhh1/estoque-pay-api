@@ -95,4 +95,4 @@ O modelo de dados está em `prisma/schema.prisma` (fonte da verdade) e resumido 
 - **Fora do escopo (D3)**: #60 e #61, emissão real de NFC-e. A NFC-e simulada (#81) cobre o comportamento visível.
 - **Validação em produção**: feita na Etapa 7 (relatório em `estoque-pay-front/docs/ETAPA-7-RELATORIO.md`).
 - **Integrações externas**: AbacatePay em modo Dev para Pix (fetch) e assinatura (SDK `@abacatepay/sdk@3.0.0`, só cartão), ambas atrás de interface com fake para teste. O Pix foi validado pela rota de simulação; o pagamento real da assinatura não foi concluído (Riscos, item 5).
-- **Infra**: `GET /health` com `SELECT 1`, `HEALTHCHECK` no Dockerfile, `prisma migrate deploy` no start e Blueprint da Render (`render.yaml`). Passo a passo em `Hospedagem_Render_Neon_Vercel.md`.
+- **Infra**: `GET /health` com `SELECT 1`, `HEALTHCHECK` no Dockerfile, `prisma migrate deploy` no start e Web Service Docker na Render. Passo a passo em `Hospedagem_Render_Neon_Vercel.md`.

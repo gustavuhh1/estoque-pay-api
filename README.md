@@ -121,7 +121,7 @@ Antes de escolher onde hospedar, saiba que servir o front e a API em **domínios
 - **Login com Google:** a URL de callback autorizada no console do Google é `{BETTER_AUTH_URL}/api/auth/callback/google`, ou seja, a do **front** (que faz proxy de `/api`), não a da API. Passo a passo no `.env.example`.
 - **Webhook da AbacatePay:** precisa de URL pública. É uma só, para Pix e assinatura: `POST {BASE_URL}/pagamento/webhook/abacatepay?webhookSecret=...`.
 
-A escolha feita (Render + Neon + Vercel, com o front fazendo proxy de `/api`) e o passo a passo estão em [`docs/Hospedagem_Render_Neon_Vercel.md`](docs/Hospedagem_Render_Neon_Vercel.md). O [`render.yaml`](render.yaml) é o Blueprint da API.
+A escolha feita (Render + Neon + Vercel, com o front fazendo proxy de `/api`) e o passo a passo estão em [`docs/Hospedagem_Render_Neon_Vercel.md`](docs/Hospedagem_Render_Neon_Vercel.md). A API é um Web Service Docker na Render, configurado no painel (sem Blueprint).
 
 ---
 
