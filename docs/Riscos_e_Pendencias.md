@@ -26,7 +26,7 @@ A checagem do limite do Free é contagem seguida de insert, sem trava. Duas cria
 
 ### 5. Pagamento real da assinatura não testado
 
-O checkout da AbacatePay abre, mas o pagamento com cartão de teste nunca foi concluído. As lojas Premium de teste usam estados gravados pelo `scripts/premium-teste.ts`. Também segue em aberto **qual chave assina o HMAC do webhook**: o gateway aceita `ABACATEPAY_WEBHOOK_SECRET` e `ABACATEPAY_WEBHOOK_HMAC_KEY` até a primeira entrega real confirmar.
+O checkout da AbacatePay abre, mas o pagamento com cartão de teste nunca foi concluído. As lojas Premium de teste usam estados gravados pelo seed (`scripts/seed.ts`). Também segue em aberto **qual chave assina o HMAC do webhook**: o gateway aceita `ABACATEPAY_WEBHOOK_SECRET` e `ABACATEPAY_WEBHOOK_HMAC_KEY` até a primeira entrega real confirmar.
 
 ## Dívida técnica (fora do escopo, D4)
 

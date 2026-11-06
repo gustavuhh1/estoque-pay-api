@@ -31,15 +31,17 @@ export const turnoResponseSchema = z.object({
   valor_fechamento: z.number().nullish(),
   aberto_por_id: z.string(),
   aberto_por_nome: z.string().nullish(),
+  aberto_por_foto: z.string().nullish(),
   aberto_em: z.date(),
   fechado_por_id: z.string().nullish(),
   fechado_por_nome: z.string().nullish(),
+  fechado_por_foto: z.string().nullish(),
   fechado_em: z.date().nullish(),
 })
 
 export type TurnoComRelacoes = TurnoCaixa & {
-  aberto_por: { name: string | null }
-  fechado_por: { name: string | null } | null
+  aberto_por: { name: string | null; image: string | null }
+  fechado_por: { name: string | null; image: string | null } | null
 }
 
 /**
@@ -58,9 +60,11 @@ export function toTurnoResponse(turno: TurnoComRelacoes) {
     valor_fechamento: turno.valor_fechamento === null ? null : Number(turno.valor_fechamento),
     aberto_por_id: turno.aberto_por_id,
     aberto_por_nome: turno.aberto_por.name,
+    aberto_por_foto: turno.aberto_por.image,
     aberto_em: turno.aberto_em,
     fechado_por_id: turno.fechado_por_id,
     fechado_por_nome: turno.fechado_por?.name ?? null,
+    fechado_por_foto: turno.fechado_por?.image ?? null,
     fechado_em: turno.fechado_em,
   }
 }

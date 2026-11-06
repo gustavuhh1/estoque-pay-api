@@ -77,6 +77,7 @@ export const movimentacaoResponseSchema = z.object({
   produto_nome: z.string(),
   usuario_id: z.string(),
   usuario_nome: z.string().nullish(),
+  usuario_foto: z.string().nullish(),
   quantidade: z.number(),
   tipo: tipoMovimentacaoSchema,
   motivo: z.enum([
@@ -110,7 +111,7 @@ export const listAlertasResponseSchema = z.array(alertaResponseSchema)
 
 export type MovimentacaoComRelacoes = MovimentacaoEstoque & {
   produto: { nome: string }
-  users: { name: string | null }
+  users: { name: string | null; image: string | null }
 }
 
 /**
@@ -127,6 +128,7 @@ export function toMovimentacaoResponse(movimentacao: MovimentacaoComRelacoes) {
     produto_nome: movimentacao.produto.nome,
     usuario_id: movimentacao.usuario_id,
     usuario_nome: movimentacao.users.name,
+    usuario_foto: movimentacao.users.image,
     quantidade: Number(movimentacao.quantidade),
     tipo: movimentacao.tipo,
     motivo: movimentacao.motivo,

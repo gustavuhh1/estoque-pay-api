@@ -43,7 +43,8 @@ export class VendaPrismaRepository implements IVendaRepository {
     const [itens, total] = await Promise.all([
       this.prisma.venda.findMany({
         where,
-        include: RELACOES_DA_VENDA,
+        // `users` é o operador de caixa (nome da relação no schema).
+        include: { ...RELACOES_DA_VENDA, users: { select: { name: true, image: true } } },
         // `id` desempata vendas do mesmo instante, para a paginação não repetir linha.
         orderBy: [{ criada_em: "desc" }, { id: "desc" }],
         skip: (params.pagina - 1) * params.limite,

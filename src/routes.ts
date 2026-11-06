@@ -11,11 +11,13 @@ import { crmRoutes } from "@/modules/crm/routes"
 import { billingRoutes } from "@/modules/billing/routes"
 import { nfceRoutes } from "@/modules/nfce/routes"
 import { healthRoutes } from "@/modules/health/routes"
+import { perfilRoutes } from "@/modules/perfil/routes"
 import type { FastifyInstance } from "fastify"
 
 export default async function routes(app: FastifyInstance) {
   app.register(healthRoutes, { prefix: "/health" })
   app.register(authRoutes, { prefix: "/auth" })
+  app.register(perfilRoutes, { prefix: "/perfil" })
   app.register(estabelecimentoRoutes, { prefix: "/estabelecimento" })
   app.register(produtoRoutes, { prefix: "/produto" })
   app.register(equipeRoutes, { prefix: "/equipe" })

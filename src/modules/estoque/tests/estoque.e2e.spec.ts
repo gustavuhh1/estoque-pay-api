@@ -302,6 +302,7 @@ describe("Estoque Module - E2E (DB Real)", () => {
       expect(response.json().limit).toBe(20)
       expect(response.json().data[0].produto_nome).toBe("Queijo Minas")
       expect(response.json().data[0].usuario_nome).toBe(user.name)
+      expect(response.json().data[0]).toHaveProperty("usuario_foto", null)
     })
 
     it("200 — respeita page e limit da querystring", async () => {

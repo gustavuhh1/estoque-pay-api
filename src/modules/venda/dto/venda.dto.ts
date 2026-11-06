@@ -105,6 +105,8 @@ export const vendaListaItemResponseSchema = vendaResponseSchema.extend({
   pago_em: z.date().nullish(),
   cancelada_em: z.date().nullish(),
   nfe_numero: z.number().nullish(),
+  operador_nome: z.string().nullish(),
+  operador_foto: z.string().nullish(),
 })
 
 export const listVendasResponseSchema = z.object({
@@ -147,7 +149,7 @@ export function toVendaResponse(venda: VendaComItens) {
   }
 }
 
-export function toVendaListaItemResponse(venda: VendaComItens) {
+export function toVendaListaItemResponse(venda: VendaComItens & { users: { name: string | null; image: string | null } }) {
   const base = toVendaResponse(venda)
 
   return {
@@ -157,6 +159,8 @@ export function toVendaListaItemResponse(venda: VendaComItens) {
     pago_em: venda.pago_em,
     cancelada_em: venda.cancelada_em,
     nfe_numero: venda.nfe_numero,
+    operador_nome: venda.users.name,
+    operador_foto: venda.users.image,
   }
 }
 

@@ -1,7 +1,7 @@
 import type { MembroEstabelecimento, Role } from "../../../../generated/prisma/client.js"
 
 export interface FuncionarioComUsuario extends MembroEstabelecimento {
-  user: { name: string | null; email: string }
+  user: { name: string | null; email: string; image: string | null }
 }
 
 export interface IEquipeRepository {

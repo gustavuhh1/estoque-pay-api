@@ -9,7 +9,7 @@ import type {
 const RELACOES_DA_MOVIMENTACAO = {
   produto: { select: { nome: true } },
   // A relação com User chama-se `users` no schema (singular User, nome plural).
-  users: { select: { name: true } },
+  users: { select: { name: true, image: true } },
 } as const
 
 export class EstoquePrismaRepository implements IEstoqueRepository {

@@ -41,6 +41,7 @@ describe("Caixa Module - E2E (DB Real)", () => {
       expect(response.json().status).toBe("ABERTO")
       expect(response.json().aberto_por_id).toBe(user.id)
       expect(response.json().aberto_por_nome).toBe(user.name)
+      expect(response.json()).toHaveProperty("aberto_por_foto", null)
       expect(response.json().valor_abertura).toBe(200)
       expect(response.json().fechado_por_id).toBeNull()
     })

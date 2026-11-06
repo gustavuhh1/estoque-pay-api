@@ -109,6 +109,8 @@ describe("Equipe Module - E2E (DB Real)", () => {
       const { user, cookie } = await createAuthenticatedUser()
       const loja = await criarEstabelecimento()
       await criarMembro(user.id, loja.id, "OWNER")
+      const foto = "https://lh3.googleusercontent.com/a/foto-do-dono=s96-c"
+      await prisma.user.update({ where: { id: user.id }, data: { image: foto } })
 
       const response = await app.inject({
         method: "GET",
@@ -118,6 +120,8 @@ describe("Equipe Module - E2E (DB Real)", () => {
 
       expect(response.statusCode).toBe(200)
       expect(response.json().membros).toHaveLength(1)
+      // RF01.7: cada membro vem com a foto.
+      expect(response.json().membros[0].foto).toBe(foto)
     })
   })
 

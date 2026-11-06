@@ -73,6 +73,9 @@ describe("GET /venda — histórico de vendas", () => {
     // D1: o que o consumidor pagou = itens + taxa do Pix.
     expect(body.itens[0].total_cobrado).toBe(20.8)
     expect(body.itens[1].total_cobrado).toBe(10)
+    // RF01.7: o histórico traz o operador de cada venda, com a foto.
+    expect(body.itens[1].operador_nome).toBe(caixa.user.name)
+    expect(body.itens[1]).toHaveProperty("operador_foto", null)
   })
 
   it("200 — Gestor também vê a loja inteira", async () => {
