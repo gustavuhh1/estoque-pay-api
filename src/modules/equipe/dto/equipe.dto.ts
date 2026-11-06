@@ -30,6 +30,8 @@ export const funcionarioResponseSchema = z.object({
   userId: z.string(),
   nome: z.string().nullish(),
   email: z.email(),
+  /** Foto do usuário: URL do Google ou imagem enviada no Meu perfil (data URI). */
+  foto: z.string().nullable(),
   role: z.enum(["ADMIN", "OWNER", "MANAGER", "CASHIER"]),
   criadoEm: z.date().nullish(),
 })
@@ -60,6 +62,7 @@ export function toFuncionarioResponse(membro: FuncionarioComUsuario) {
     userId: membro.userId,
     nome: membro.user.name,
     email: membro.user.email,
+    foto: membro.user.image,
     role: membro.role,
     criadoEm: membro.createdAt,
   }

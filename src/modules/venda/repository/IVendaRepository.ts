@@ -70,8 +70,11 @@ export interface ListarVendasParams {
   limite: number
 }
 
+/** Item do histórico: a venda com o operador de caixa (nome e foto). */
+export type VendaDaLista = VendaComItens & { users: { name: string | null; image: string | null } }
+
 export interface PaginaDeVendas {
-  itens: VendaComItens[]
+  itens: VendaDaLista[]
   /** Total de vendas que casam com o filtro, ignorando a paginação. */
   total: number
 }

@@ -351,3 +351,13 @@ export class NfceNaoElegivelError extends ConflictError {
     super(mensagens[motivo], "NFCE_NAO_ELEGIVEL", { motivo })
   }
 }
+
+/**
+ * "Usar foto do Google" sem conta Google vinculada (ou sem foto no token dela).
+ * 409: o pedido é válido, o conflito é com o estado da conta.
+ */
+export class FotoGoogleIndisponivelError extends ConflictError {
+  constructor() {
+    super("Esta conta não tem um login com Google com foto para usar.", "FOTO_GOOGLE_INDISPONIVEL")
+  }
+}

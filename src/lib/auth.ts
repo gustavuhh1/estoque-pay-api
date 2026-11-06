@@ -6,6 +6,16 @@ import { sendEmail } from "./brevo";
 import { oneTap } from "better-auth/plugins";
 import { vincularConvitesPendentes } from "@/modules/equipe/service/vincularConvitesPendentes";
 import { origensConfiaveis } from "./origens";
+import { fotoEnviadaValida, preencherFotoDoGoogle } from "@/modules/perfil/foto";
+
+/** Completar a foto nunca pode derrubar o login: falha aqui só deixa o usuário sem foto. */
+async function completarFoto(conta: { providerId: string; userId: string; idToken?: string | null | undefined }) {
+  try {
+    await preencherFotoDoGoogle(prisma, conta);
+  } catch (erro) {
+    console.error("Não foi possível completar a foto pelo Google:", erro);
+  }
+}
 
 export const auth = betterAuth({
   // `baseURL` (com URL maiúsculo) é o nome real da opção; o `baseUrl` que estava
@@ -26,6 +36,22 @@ export const auth = betterAuth({
           await vincularConvitesPendentes(prisma, { id: user.id, email: user.email });
         },
       },
+      update: {
+        // A rota nativa /api/auth/update-user aceita `image` livre: só deixa passar o
+        // mesmo formato do Meu perfil (data URI pequeno), HTTPS ou remoção.
+        before: async (dados) => {
+          const foto = (dados as { image?: unknown }).image;
+          if (foto === undefined || foto === null) return;
+          const https = typeof foto === "string" && foto.startsWith("https://");
+          if (!https && !(typeof foto === "string" && fotoEnviadaValida(foto))) return false;
+        },
+      },
+    },
+    // RF01.7: o better-auth grava a conta do Google ao vincular e atualiza o token a cada
+    // login. Nos dois momentos, quem ainda não tem foto passa a usar a do Google.
+    account: {
+      create: { after: async (conta) => completarFoto(conta) },
+      update: { after: async (conta) => completarFoto(conta) },
     },
   },
   emailAndPassword: {

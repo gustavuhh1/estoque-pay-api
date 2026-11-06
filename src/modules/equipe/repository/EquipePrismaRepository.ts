@@ -2,7 +2,7 @@ import type { PrismaClient, Role } from "../../../../generated/prisma/client.js"
 import type { FuncionarioComUsuario, IEquipeRepository } from "./IEquipeRepository"
 
 const SELECT_COM_USUARIO = {
-  include: { user: { select: { name: true, email: true } } },
+  include: { user: { select: { name: true, email: true, image: true } } },
 } as const
 
 export class EquipePrismaRepository implements IEquipeRepository {

@@ -21,7 +21,7 @@ export class InMemoryEquipeRepository implements IEquipeRepository {
       role: membro.role,
       createdAt: new Date(),
       updatedAt: new Date(),
-      user: { name: membro.nome ?? "Funcionário de Teste", email: membro.email ?? `${membro.userId}@email.com` },
+      user: { name: membro.nome ?? "Funcionário de Teste", email: membro.email ?? `${membro.userId}@email.com`, image: null },
     }
     this.membros.push(registro)
     return registro
