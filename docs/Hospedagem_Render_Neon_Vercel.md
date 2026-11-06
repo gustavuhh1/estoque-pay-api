@@ -95,15 +95,22 @@ Se o primeiro aviso chegar com a API hibernada, o timeout de 30 s da AbacatePay 
 
 A API hiberna após 15 min parada. Para a validação em produção, "acorde" a API antes (`curl /health`) ou aceite ~1 min na primeira tela. Isso é o esperado do plano gratuito e é justamente o que o cenário "API fora do ar / cold start" testa: o front precisa mostrar a tela de erro de rede ou um carregando, em vez de quebrar.
 
-## Lojas Premium de teste (cenários 14, 15 e 16)
+## Seed: loja de apresentação e lojas Premium de teste
 
-Em modo dev não há como o avaliador pagar de verdade, então o estado da assinatura é gravado direto no banco, o mesmo resultado que o webhook da AbacatePay produziria:
+`scripts/seed.ts` alimenta o banco com a loja **Mercadinho Ponto Certo** (plano Free: Dono, Gestor e Caixa, 15 produtos em 6 categorias, 4 clientes, caixa aberto, 6 vendas com uma cancelada e uma no Pix, e o cupom `FID-3Q7K-PUK4`) e com as três lojas Premium abaixo.
 
 ```bash
-DATABASE_URL="<conexão direta do Neon>" npx tsx scripts/premium-teste.ts --confirmar
+npm run seed                    # banco do DATABASE_URL (local); repetível, não duplica
+npm run seed -- --reset         # apaga todos os dados (mantém schema e migrações) e recria
+npm run seed -- --prod          # banco do PROD_DATABASE_URL (produção)
+npm run seed -- --prod --reset  # zera e recria a produção
 ```
 
-Cria (ou recoloca no estado de partida) o usuário `premium-teste@exemplo.com` com três lojas dele:
+- `PROD_DATABASE_URL` fica só no `.env` local e precisa ser o endereço **externo** do banco. O interno da Render (`dpg-...-a`, sem domínio) só resolve dentro da rede dela.
+- Com `--prod`, o script pede para digitar o nome do banco antes de gravar; `--yes` pula a confirmação.
+- Sem `--reset`, quem já existe é mantido: vendas só são criadas se a loja ainda não tiver nenhuma, e as lojas Premium voltam ao estado de partida.
+
+Em modo dev não há como o avaliador pagar de verdade, então o estado da assinatura das lojas Premium é gravado direto no banco, o mesmo resultado que o webhook da AbacatePay produziria. Usuário `premium-teste@exemplo.com`, dono das três:
 
 | Loja | Assinatura | Switch NFC-e | Para o cenário |
 | --- | --- | --- | --- |
@@ -111,7 +118,7 @@ Cria (ou recoloca no estado de partida) o usuário `premium-teste@exemplo.com` c
 | Loja Premium Inadimplente | `PAST_DUE` | desligado (como o webhook deixa) | 15 |
 | Loja Premium Ativa | `ACTIVE` mensal | ligado | 16 |
 
-As lojas com NFC-e ligada (Trial e Ativa) já têm IE e certificado A1 com senha simulados, e a Ativa vem com 3 produtos com NCM, CFOP e estoque, prontos para vender e emitir a nota simulada. O script imprime o id de cada loja e a senha de teste. Rodar de novo restaura as três, útil depois de gastar o trial ou de testar a inadimplência.
+As lojas com NFC-e ligada (Trial e Ativa) já têm IE e certificado A1 com senha simulados, e a Ativa vem com 3 produtos com NCM, CFOP e estoque, prontos para vender e emitir a nota simulada. Rodar o seed de novo restaura as três, útil depois de gastar o trial ou de testar a inadimplência.
 
 ## Região do banco: fica junto da API
 

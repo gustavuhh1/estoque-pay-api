@@ -20,6 +20,7 @@
     "test:watch": "npm run test:db && dotenv -e .env.test -- vitest",
     "test:ui": "npm run test:db && dotenv -e .env.test -- vitest --ui",
     "dev": "tsx watch src/server.ts",
+    "seed": "tsx scripts/seed.ts",
     "build": "prisma generate && tsc --noEmit && tsup",
     "start": "node dist/server.js"
   },
