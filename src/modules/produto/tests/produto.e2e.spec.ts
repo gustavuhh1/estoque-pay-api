@@ -65,6 +65,22 @@ describe("Produto Module - E2E (DB Real)", () => {
       expect(response.json().ativo).toBe(true)
     })
 
+    it("201 — estoque inicial aparece no histórico como entrada de quem cadastrou (RN05)", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
+      await criarMembro(user.id, loja.id, "OWNER")
+      const headers = { cookie, "x-estabelecimento-id": loja.id }
+
+      const criado = await app.inject({ method: "POST", url: "/produto", headers, payload: { ...CORPO_BASE, quantidade_atual: 24 } })
+      expect(criado.statusCode).toBe(201)
+      expect(criado.json().quantidade_atual).toBe(24)
+
+      const historico = await app.inject({ method: "GET", url: `/estoque/movimentacoes?produto_id=${criado.json().id}`, headers })
+      expect(historico.statusCode).toBe(200)
+      expect(historico.json().total).toBe(1)
+      expect(historico.json().data[0]).toMatchObject({ tipo: "ENTRADA", motivo: "REABASTECIMENTO", quantidade: 24, observacao: "Estoque inicial" })
+    })
+
     it("201 — RN09.1: nasce inativo se faltar NCM/CFOP com NFC-e ligada, sem erro", async () => {
       const { user, cookie } = await createAuthenticatedUser()
       const loja = await criarEstabelecimento(CNPJ_VALIDO, true)
