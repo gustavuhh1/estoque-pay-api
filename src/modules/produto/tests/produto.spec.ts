@@ -7,7 +7,8 @@ import { EanGtinAlreadyInUseError, ForbiddenError, NotFoundError } from "@/share
 import { EstabelecimentoPrismaRepository } from "@/modules/estabelecimento/repository/EstabelecimentoPrismaRepository"
 import type { Role } from "../../../../generated/prisma/client.js"
 import { ProdutoService } from "../service/ProdutoService"
-import { ProdutoPrismaRepository } from "../repository/ProdutoPrismaRepository"
+import { OBSERVACAO_ESTOQUE_INICIAL, ProdutoPrismaRepository } from "../repository/ProdutoPrismaRepository"
+import { createAuthenticatedUser } from "@/shared/tests/create-authenticated-user"
 
 const CNPJ_VALIDO = "11222333000181"
 const OUTRO_CNPJ_VALIDO = "11444777000161"
@@ -84,20 +85,23 @@ async function criarVendaDoProduto(estabelecimentoId: string, userId: string, pr
 
 describe("ProdutoService", () => {
   let sut: ProdutoService
+  let usuarioId: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sut = new ProdutoService(
       new ProdutoPrismaRepository(prisma),
       new EstabelecimentoPrismaRepository(prisma),
       new PlanoService(new PlanoPrismaRepository(prisma))
     )
+    // Quem cadastra: responsável pela entrada do estoque inicial (RN05).
+    usuarioId = (await createAuthenticatedUser()).user.id
   })
 
   describe("create (#43 — RF01.1 / RN09 / RN09.1)", () => {
     it("cria com ativo=true quando emite_nfce=false, mesmo sem NCM/CFOP", async () => {
       const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
 
-      const produto = await sut.create(loja.id, "OWNER", {
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, {
         nome: "Refrigerante",
         tipo_medida: "UNIDADE",
         preco_custo: 3,
@@ -112,7 +116,7 @@ describe("ProdutoService", () => {
     it("cria com ativo=true quando emite_nfce=true e NCM+CFOP presentes", async () => {
       const loja = await criarEstabelecimento(CNPJ_VALIDO, true)
 
-      const produto = await sut.create(loja.id, "OWNER", {
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, {
         nome: "Refrigerante",
         tipo_medida: "UNIDADE",
         preco_custo: 3,
@@ -129,7 +133,7 @@ describe("ProdutoService", () => {
     it("cria com ativo=false forçado quando emite_nfce=true e falta NCM/CFOP (RN09.1) — não lança erro", async () => {
       const loja = await criarEstabelecimento(CNPJ_VALIDO, true)
 
-      const produto = await sut.create(loja.id, "OWNER", {
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, {
         nome: "Refrigerante",
         tipo_medida: "UNIDADE",
         preco_custo: 3,
@@ -146,7 +150,7 @@ describe("ProdutoService", () => {
       await criarProdutoDireto(loja.id, { ean_gtin: "7890000000001" })
 
       await expect(
-        sut.create(loja.id, "OWNER", {
+        sut.create(loja.id, "OWNER", usuarioId, {
           nome: "Outro Produto",
           tipo_medida: "UNIDADE",
           preco_custo: 1,
@@ -163,7 +167,7 @@ describe("ProdutoService", () => {
       const lojaB = await criarEstabelecimento(OUTRO_CNPJ_VALIDO)
       await criarProdutoDireto(lojaA.id, { ean_gtin: "7890000000002" })
 
-      const produto = await sut.create(lojaB.id, "OWNER", {
+      const produto = await sut.create(lojaB.id, "OWNER", usuarioId, {
         nome: "Produto Loja B",
         tipo_medida: "UNIDADE",
         preco_custo: 1,
@@ -180,7 +184,7 @@ describe("ProdutoService", () => {
       const loja = await criarEstabelecimento(CNPJ_VALIDO)
 
       await expect(
-        sut.create(loja.id, "CASHIER", {
+        sut.create(loja.id, "CASHIER", usuarioId, {
           nome: "Produto Proibido",
           tipo_medida: "UNIDADE",
           preco_custo: 1,
@@ -189,6 +193,62 @@ describe("ProdutoService", () => {
           quantidade_minima: 0,
         })
       ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+  })
+
+  describe("create — estoque inicial (RN05)", () => {
+    const novo = (quantidade_atual: number, extra: Record<string, unknown> = {}) => ({
+      nome: "Coca-Cola 2L",
+      tipo_medida: "UNIDADE" as const,
+      preco_custo: 7,
+      preco_venda: 9.9,
+      quantidade_atual,
+      quantidade_minima: 0,
+      ...extra,
+    })
+
+    it("estoque inicial > 0 vira uma ENTRADA no histórico, com quem cadastrou", async () => {
+      const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
+
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, novo(24))
+
+      const movimentacoes = await prisma.movimentacaoEstoque.findMany({ where: { produto_id: produto.id } })
+      expect(Number(produto.quantidade_atual)).toBe(24)
+      expect(movimentacoes).toHaveLength(1)
+      expect(movimentacoes[0]).toMatchObject({
+        estabelecimento_id: loja.id,
+        usuario_id: usuarioId,
+        tipo: "ENTRADA",
+        motivo: "REABASTECIMENTO",
+        observacao: OBSERVACAO_ESTOQUE_INICIAL,
+      })
+      expect(Number(movimentacoes[0]!.quantidade)).toBe(24)
+    })
+
+    it("aceita quantidade fracionada (kg) no estoque inicial", async () => {
+      const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
+
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, novo(2.375, { tipo_medida: "FRACIONADO_KG" }))
+
+      const movimentacao = await prisma.movimentacaoEstoque.findFirstOrThrow({ where: { produto_id: produto.id } })
+      expect(Number(movimentacao.quantidade)).toBe(2.375)
+    })
+
+    it("sem estoque inicial não cria movimentação", async () => {
+      const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
+
+      const produto = await sut.create(loja.id, "OWNER", usuarioId, novo(0))
+
+      expect(await prisma.movimentacaoEstoque.count({ where: { produto_id: produto.id } })).toBe(0)
+    })
+
+    it("produto e entrada são uma transação só: se a entrada falhar, o produto não fica", async () => {
+      const loja = await criarEstabelecimento(CNPJ_VALIDO, false)
+
+      // Usuário inexistente: a FK da movimentação falha e derruba o cadastro junto.
+      await expect(sut.create(loja.id, "OWNER", randomUUID(), novo(5))).rejects.toThrow()
+
+      expect(await prisma.produto.count({ where: { estabelecimento_id: loja.id } })).toBe(0)
     })
   })
 

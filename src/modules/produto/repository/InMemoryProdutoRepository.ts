@@ -10,6 +10,8 @@ import type {
 export class InMemoryProdutoRepository implements IProdutoRepository {
   public produtos: Produto[] = []
   public itensVendaPorProduto = new Set<string>()
+  /** Entradas de estoque inicial geradas no cadastro (o repositório real grava em MovimentacaoEstoque). */
+  public entradasIniciais: { produto_id: string; usuario_id: string; quantidade: number }[] = []
 
   async create(data: CreateProdutoParams): Promise<Produto> {
     const produto: Produto = {
@@ -31,6 +33,9 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
     }
 
     this.produtos.push(produto)
+    if (data.quantidade_atual > 0) {
+      this.entradasIniciais.push({ produto_id: produto.id, usuario_id: data.usuario_id, quantidade: data.quantidade_atual })
+    }
 
     return produto
   }

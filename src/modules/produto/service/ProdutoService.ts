@@ -43,7 +43,8 @@ export class ProdutoService {
   }
 
   /** RF01.1 + RN09.1 (fallback de segurança, nunca bloqueia o save). */
-  async create(estabelecimentoId: string, role: Role, data: CreateProdutoDTO) {
+  /** `usuarioId` é o responsável pela entrada do estoque inicial, quando houver (RN05). */
+  async create(estabelecimentoId: string, role: Role, usuarioId: string, data: CreateProdutoDTO) {
     this.garantirAcesso(role)
 
     if (
@@ -69,7 +70,8 @@ export class ProdutoService {
       return await this.produtoRepository.create({
         ...data,
         estabelecimento_id: estabelecimentoId,
-        ativo: !forcarInativo
+        ativo: !forcarInativo,
+        usuario_id: usuarioId,
       })
     } catch (error) {
       // Corrida: outro request pode ter cadastrado o mesmo ean_gtin entre o

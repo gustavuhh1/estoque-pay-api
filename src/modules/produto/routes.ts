@@ -51,7 +51,7 @@ export async function produtoRoutes(app: FastifyInstance) {
       schema: {
         tags: ["Produto"],
         summary: "Cria um produto na loja ativa",
-        description: `RF01.1. ${TENANT_HEADER_DOC} Se a loja tiver o switch de NFC-e ligado e faltar NCM ou CFOP, o produto é salvo mesmo assim, mas nasce com ativo=false (RN09.1 — nunca bloqueia o cadastro, só evita venda fora de conformidade). Caixa (CASHIER) não pode criar produtos.`,
+        description: `RF01.1. ${TENANT_HEADER_DOC} Se a loja tiver o switch de NFC-e ligado e faltar NCM ou CFOP, o produto é salvo mesmo assim, mas nasce com ativo=false (RN09.1 — nunca bloqueia o cadastro, só evita venda fora de conformidade). \`quantidade_atual\` é o estoque inicial (padrão 0): se for maior que zero, gera no histórico uma ENTRADA com motivo REABASTECIMENTO e observação "Estoque inicial", na mesma transação do cadastro (RN05). Caixa (CASHIER) não pode criar produtos.`,
         security: [{ cookieAuth: [] }],
         body: createProdutoSchema,
         response: {

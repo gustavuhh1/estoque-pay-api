@@ -20,13 +20,16 @@ export class ProdutoController {
   ) {
     // requireTenant já garantiu vínculo + populou request.membro; isto é só
     // o estreitamento do tipo opcional (e a mesma rede de segurança de sempre).
-    if (!request.membro) {
+    // `request.membro` não carrega o userId: quem cadastrou (responsável pela
+    // entrada do estoque inicial) vem do `request.user`, como no EstoqueController.
+    if (!request.membro || !request.user) {
       throw new UnauthorizedError("Autenticação necessária.")
     }
 
     const produto = await this.produtoService.create(
       request.membro.estabelecimentoId,
       request.membro.role,
+      request.user.id,
       request.body
     )
 

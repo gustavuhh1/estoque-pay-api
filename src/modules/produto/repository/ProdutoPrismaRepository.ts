@@ -1,28 +1,51 @@
-import type { PrismaClient } from "../../../../generated/prisma/client.js"
+import { Prisma, type PrismaClient } from "../../../../generated/prisma/client.js"
 import type {
   CreateProdutoParams,
   IProdutoRepository,
   UpdateProdutoParams,
 } from "./IProdutoRepository"
 
+/** Observação da entrada gerada pelo estoque inicial do cadastro (mesma do seed). */
+export const OBSERVACAO_ESTOQUE_INICIAL = "Estoque inicial"
+
 export class ProdutoPrismaRepository implements IProdutoRepository {
   constructor(private prisma: PrismaClient) {}
 
   async create(data: CreateProdutoParams) {
-    return this.prisma.produto.create({
-      data: {
-        estabelecimento_id: data.estabelecimento_id,
-        nome: data.nome,
-        ean_gtin: data.ean_gtin ?? null,
-        tipo_medida: data.tipo_medida,
-        preco_custo: data.preco_custo,
-        preco_venda: data.preco_venda,
-        quantidade_atual: data.quantidade_atual,
-        quantidade_minima: data.quantidade_minima,
-        ncm: data.ncm ?? null,
-        cfop: data.cfop ?? null,
-        ativo: data.ativo,
-      },
+    const dadosDoProduto = {
+      estabelecimento_id: data.estabelecimento_id,
+      nome: data.nome,
+      ean_gtin: data.ean_gtin ?? null,
+      tipo_medida: data.tipo_medida,
+      preco_custo: data.preco_custo,
+      preco_venda: data.preco_venda,
+      quantidade_atual: data.quantidade_atual,
+      quantidade_minima: data.quantidade_minima,
+      ncm: data.ncm ?? null,
+      cfop: data.cfop ?? null,
+      ativo: data.ativo,
+    }
+
+    if (data.quantidade_atual <= 0) {
+      return this.prisma.produto.create({ data: dadosDoProduto })
+    }
+
+    // RN05: o estoque inicial entra no histórico como qualquer outra entrada.
+    // Antes, o saldo nascia direto na coluna, sem rastro de quem nem de onde.
+    return this.prisma.$transaction(async (tx) => {
+      const produto = await tx.produto.create({ data: dadosDoProduto })
+      await tx.movimentacaoEstoque.create({
+        data: {
+          estabelecimento_id: data.estabelecimento_id,
+          produto_id: produto.id,
+          usuario_id: data.usuario_id,
+          quantidade: new Prisma.Decimal(data.quantidade_atual.toString()),
+          tipo: "ENTRADA",
+          motivo: "REABASTECIMENTO",
+          observacao: OBSERVACAO_ESTOQUE_INICIAL,
+        },
+      })
+      return produto
     })
   }
 

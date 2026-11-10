@@ -6,6 +6,7 @@ import { AuthPrismaRepository } from "@/modules/auth/repository/AuthPrismaReposi
 import { EstabelecimentoPrismaRepository } from "@/modules/estabelecimento/repository/EstabelecimentoPrismaRepository"
 import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
 import { ProdutoService } from "@/modules/produto/service/ProdutoService"
+import { createAuthenticatedUser } from "@/shared/tests/create-authenticated-user"
 import { EquipePrismaRepository } from "@/modules/equipe/repository/EquipePrismaRepository"
 import { ConvitePrismaRepository } from "@/modules/equipe/repository/ConvitePrismaRepository"
 import { EquipeService } from "@/modules/equipe/service/EquipeService"
@@ -56,23 +57,26 @@ const novoProduto = (nome = "Produto novo") => ({
 
 describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
   let sut: ProdutoService
+  let usuarioId: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sut = new ProdutoService(
       new ProdutoPrismaRepository(prisma),
       new EstabelecimentoPrismaRepository(prisma),
       new PlanoService(new PlanoPrismaRepository(prisma))
     )
+    // Quem cadastra: responsável pela entrada do estoque inicial (RN05).
+    usuarioId = (await createAuthenticatedUser()).user.id
   })
 
   it("o 50º produto ativo passa e o 51º é bloqueado", async () => {
     const loja = await criarLoja()
     await criarProdutos(loja.id, 49)
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto("50º"))).resolves.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto("50º"))).resolves.toMatchObject({
       ativo: true,
     })
-    await expect(sut.create(loja.id, "OWNER", novoProduto("51º"))).rejects.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto("51º"))).rejects.toMatchObject({
       statusCode: 409,
       code: "PLANO_LIMITE_PRODUTOS",
       details: { limite: 50, atual: 50 },
@@ -85,7 +89,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     await criarProdutos(loja.id, 50)
     await criarProdutos(loja.id, 10, false)
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).rejects.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).rejects.toMatchObject({
       code: "PLANO_LIMITE_PRODUTOS",
       details: { atual: 50 },
     })
@@ -97,7 +101,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     const um = await prisma.produto.findFirstOrThrow({ where: { estabelecimento_id: loja.id } })
     await prisma.produto.update({ where: { id: um.id }, data: { deletado_em: new Date() } })
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).resolves.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).resolves.toMatchObject({
       ativo: true,
     })
   })
@@ -109,7 +113,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
 
     await sut.inativar(um.id, loja.id, "OWNER")
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).resolves.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).resolves.toMatchObject({
       ativo: true,
     })
   })
@@ -148,7 +152,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     await criarProdutos(loja.id, 50)
 
     // Sem NCM/CFOP com NFC-e ligada: nasce inativo (nunca bloqueia o save).
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).resolves.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).resolves.toMatchObject({
       ativo: false,
     })
   })
@@ -158,7 +162,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     await criarAssinatura(loja.id, "ACTIVE")
     await criarProdutos(loja.id, 60)
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).resolves.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).resolves.toMatchObject({
       ativo: true,
     })
   })
@@ -168,7 +172,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     await criarAssinatura(loja.id, "CANCELED")
     await criarProdutos(loja.id, 60)
 
-    await expect(sut.create(loja.id, "OWNER", novoProduto())).rejects.toMatchObject({
+    await expect(sut.create(loja.id, "OWNER", usuarioId, novoProduto())).rejects.toMatchObject({
       code: "PLANO_LIMITE_PRODUTOS",
       details: { atual: 60 },
     })
@@ -186,7 +190,7 @@ describe("Limite de produtos ativos do Free (#68 — RN01/RN03)", () => {
     })
     await criarProdutos(lojaCheia.id, 50)
 
-    await expect(sut.create(outra.id, "OWNER", novoProduto())).resolves.toBeDefined()
+    await expect(sut.create(outra.id, "OWNER", usuarioId, novoProduto())).resolves.toBeDefined()
   })
 })
 

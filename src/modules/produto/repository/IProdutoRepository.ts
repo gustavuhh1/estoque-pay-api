@@ -13,6 +13,8 @@ export interface CreateProdutoParams {
   ncm?: string | undefined
   cfop?: string | undefined
   ativo: boolean // já calculado pelo Service (RN09.1) antes de chegar aqui
+  /** Quem cadastrou: responsável pela entrada do estoque inicial no histórico (RN05). */
+  usuario_id: string
 }
 
 export interface UpdateProdutoParams {
@@ -29,6 +31,11 @@ export interface UpdateProdutoParams {
 }
 
 export interface IProdutoRepository {
+  /**
+   * RF01.1 + RN05: com `quantidade_atual` > 0, grava o produto e a entrada do
+   * estoque inicial (ENTRADA, REABASTECIMENTO, observação "Estoque inicial") na
+   * MESMA transação — o saldo nunca nasce sem a linha de auditoria.
+   */
   create(data: CreateProdutoParams): Promise<Produto>
   /** RF02.2: só produtos não soft-deletados (deletado_em: null) da loja. */
   findManyByEstabelecimento(estabelecimentoId: string): Promise<Produto[]>
