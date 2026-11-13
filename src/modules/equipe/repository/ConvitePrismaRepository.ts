@@ -32,6 +32,7 @@ export class ConvitePrismaRepository implements IConviteRepository {
   }
 
   async delete(id: string) {
-    await this.prisma.conviteFuncionario.delete({ where: { id } })
+    // deleteMany: se outra requisição já apagou o convite, não vira 500 (P2025); o pedido de cancelar fica atendido.
+    await this.prisma.conviteFuncionario.deleteMany({ where: { id, aceitoEm: null } })
   }
 }
