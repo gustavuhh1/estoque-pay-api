@@ -203,6 +203,22 @@ export class AssinaturaService {
   }
 
   /**
+   * Confirmação ativa na volta do checkout. O webhook pode não chegar (URL
+   * apontando para outro serviço, evento não assinado no painel, API dormindo
+   * no plano gratuito), e sem ele a loja ficaria Free mesmo com o cartão
+   * aceito. Aqui a própria loja pede: a API consulta o checkout NA ABACATEPAY e
+   * aplica o mesmo estado que o webhook aplicaria. O corpo não é confiado: só
+   * vale checkout cujo `externalId` aponta para ESTA loja.
+   */
+  async sincronizarCheckout(estabelecimentoId: string, checkoutId: string): Promise<boolean> {
+    const remota = await this.gateway.consultarAssinatura(checkoutId)
+
+    if (!remota || remota.estabelecimento_id !== estabelecimentoId) return false
+
+    return this.aplicar("subscription.completed", remota)
+  }
+
+  /**
    * Rede de segurança do trial (#66): o primeiro débito é em `trial_expira_em`
    * e o evento dessa cobrança não é documentado. Se a loja ainda está em
    * TRIALING com o trial vencido, pergunta ao provedor em vez de dar Premium
