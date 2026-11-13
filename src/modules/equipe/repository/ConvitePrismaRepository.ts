@@ -26,4 +26,12 @@ export class ConvitePrismaRepository implements IConviteRepository {
       where: { estabelecimentoId, aceitoEm: null },
     })
   }
+
+  async findPendenteByIdAndEstabelecimento(id: string, estabelecimentoId: string) {
+    return this.prisma.conviteFuncionario.findFirst({ where: { id, estabelecimentoId, aceitoEm: null } })
+  }
+
+  async delete(id: string) {
+    await this.prisma.conviteFuncionario.delete({ where: { id } })
+  }
 }
