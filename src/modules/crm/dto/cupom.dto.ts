@@ -121,7 +121,8 @@ export function toCupomResponse(cupom: CupomComResumo) {
     ...resto,
     valor_desconto: Number(cupom.valor_desconto),
     cliente_nome: cliente?.nome ?? null,
-    usos: usos?.length ?? (cupom.resgatado_em ? 1 : 0),
+    // Cupom resgatado antes da tabela de usos existir não tem linha em cupom_usos: conta como 1 uso.
+    usos: usos?.length || (cupom.resgatado_em ? 1 : 0),
     desconto_total: (usos ?? []).reduce((soma, uso) => soma + Number(uso.desconto), 0),
     status: statusDoCupom(cupom),
   }
