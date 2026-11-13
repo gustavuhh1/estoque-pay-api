@@ -260,6 +260,76 @@ describe("Produto Module - E2E (DB Real)", () => {
     })
   })
 
+  describe("Foto do produto (imagem_url)", () => {
+    const FOTO_PNG =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+    it("201 — cadastra com foto e devolve imagem_url no cadastro e na listagem", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento(CNPJ_VALIDO)
+      await criarMembro(user.id, loja.id, "OWNER")
+      const headers = { cookie, "x-estabelecimento-id": loja.id }
+
+      const criado = await app.inject({
+        method: "POST",
+        url: "/produto",
+        headers,
+        payload: { ...CORPO_BASE, imagem_url: FOTO_PNG },
+      })
+      expect(criado.statusCode).toBe(201)
+      expect(criado.json().imagem_url).toBe(FOTO_PNG)
+
+      const lista = await app.inject({ method: "GET", url: "/produto", headers })
+      expect(lista.json()[0].imagem_url).toBe(FOTO_PNG)
+    })
+
+    it("200 — troca a foto na edição e remove com imagem_url: null", async () => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento(CNPJ_VALIDO)
+      await criarMembro(user.id, loja.id, "OWNER")
+      const produto = await criarProdutoDireto(loja.id)
+      const headers = { cookie, "x-estabelecimento-id": loja.id }
+
+      const comFoto = await app.inject({
+        method: "PATCH",
+        url: `/produto/${produto.id}`,
+        headers,
+        payload: { imagem_url: FOTO_PNG },
+      })
+      expect(comFoto.statusCode).toBe(200)
+      expect(comFoto.json().imagem_url).toBe(FOTO_PNG)
+
+      const semFoto = await app.inject({
+        method: "PATCH",
+        url: `/produto/${produto.id}`,
+        headers,
+        payload: { imagem_url: null },
+      })
+      expect(semFoto.statusCode).toBe(200)
+      expect(semFoto.json().imagem_url).toBeNull()
+      expect((await prisma.produto.findUnique({ where: { id: produto.id } }))?.imagem_url).toBeNull()
+    })
+
+    it.each([
+      ["URL externa", "https://exemplo.com/foto.png"],
+      ["SVG (pode carregar script)", "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="],
+      ["acima de ~100 KB", `data:image/png;base64,${"A".repeat(150_000)}`],
+    ])("400 — recusa foto inválida: %s", async (_caso, imagem_url) => {
+      const { user, cookie } = await createAuthenticatedUser()
+      const loja = await criarEstabelecimento(CNPJ_VALIDO)
+      await criarMembro(user.id, loja.id, "OWNER")
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/produto",
+        headers: { cookie, "x-estabelecimento-id": loja.id },
+        payload: { ...CORPO_BASE, imagem_url },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
   describe("DELETE /produto/:id (#44)", () => {
     it("204 — exclui produto nunca vendido (hard delete)", async () => {
       const { user, cookie } = await createAuthenticatedUser()

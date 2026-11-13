@@ -1,7 +1,18 @@
 import z from "zod"
 import type { Produto } from "../../../../generated/prisma/client.js"
+import { FOTO_MAX_CARACTERES, fotoEnviadaValida } from "../../perfil/foto"
 
 const tipoMedidaSchema = z.enum(["UNIDADE", "FRACIONADO_KG"])
+
+/**
+ * Foto do produto: data URI PNG, JPEG ou WebP de até ~100 KB, mesma regra da foto
+ * de perfil (RF01.7) — o front reduz a imagem antes de enviar. `null` remove a foto.
+ */
+const imagemUrlSchema = z
+  .string()
+  .max(FOTO_MAX_CARACTERES, "A foto passa do tamanho máximo (cerca de 100 KB).")
+  .refine(fotoEnviadaValida, "Envie a foto como imagem PNG, JPEG ou WebP.")
+  .nullable()
 
 export const createProdutoSchema = z.object({
   nome: z.string().trim().min(2, "O nome do produto é obrigatório."),
@@ -13,6 +24,7 @@ export const createProdutoSchema = z.object({
   quantidade_minima: z.number().nonnegative().default(0),
   ncm: z.string().trim().min(1).optional(),
   cfop: z.string().trim().min(1).optional(),
+  imagem_url: imagemUrlSchema.optional(),
   // `ativo` NÃO é parâmetro de criação: é calculado pelo Service via RN09.1
   // (se a loja emite NFC-e e falta NCM/CFOP, nasce inativo automaticamente).
 })
@@ -35,6 +47,7 @@ export const produtoResponseSchema = z.object({
   quantidade_minima: z.number(),
   ncm: z.string().nullish(),
   cfop: z.string().nullish(),
+  imagem_url: z.string().nullish(),
   ativo: z.boolean(),
   criado_em: z.date(),
   atualizado_em: z.date(),
@@ -77,6 +90,7 @@ export const updateProdutoSchema = z
     quantidade_minima: z.number().nonnegative().optional(),
     ncm: z.string().trim().min(1).nullable().optional(),
     cfop: z.string().trim().min(1).nullable().optional(),
+    imagem_url: imagemUrlSchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Informe ao menos um campo para atualizar.",
