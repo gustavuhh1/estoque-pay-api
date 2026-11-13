@@ -517,3 +517,48 @@ describe("GET /billing/assinatura — reconciliação do trial vencido (#66)", (
     expect(corpo).toMatchObject({ plano: "FREE", status: "CANCELED" })
   })
 })
+
+describe("POST /billing/assinatura/sincronizar — volta do checkout sem webhook", () => {
+  async function iniciar(app: Awaited<ReturnType<typeof montarApp>>["app"], headers: Record<string, string>) {
+    return (await app.inject({ method: "POST", url: "/billing/assinatura", headers, payload: { tipo_plano: "MENSAL" } })).json()
+  }
+
+  it("cartão aceito e webhook perdido: a volta do checkout ativa o Premium", async () => {
+    const { app, assinaturaGateway } = await montarApp()
+    const ctx = await criarContexto()
+    const checkout = await iniciar(app, ctx.headers)
+
+    // Checkout ainda pendente: nada muda.
+    assinaturaGateway.registrar({ subscription_id: SUB, checkout_id: checkout.checkout_id, estabelecimento_id: ctx.lojaId, status: "PENDING" })
+    const pendente = await app.inject({ method: "POST", url: "/billing/assinatura/sincronizar", headers: ctx.headers, payload: { checkout_id: checkout.checkout_id } })
+    expect(pendente.statusCode).toBe(200)
+    expect(pendente.json()).toMatchObject({ plano: "FREE" })
+
+    // Cartão confirmado na AbacatePay, sem nenhum webhook.
+    assinaturaGateway.definir(SUB, { status: "ACTIVE", trial_expira_em: EM_7_DIAS, tipo_plano: "MENSAL" })
+    const ativa = await app.inject({ method: "POST", url: "/billing/assinatura/sincronizar", headers: ctx.headers, payload: { checkout_id: checkout.checkout_id } })
+    expect(ativa.statusCode).toBe(200)
+    expect(ativa.json()).toMatchObject({ plano: "PREMIUM", status: "TRIALING" })
+
+    // Idempotente.
+    const de_novo = await app.inject({ method: "POST", url: "/billing/assinatura/sincronizar", headers: ctx.headers, payload: { checkout_id: checkout.checkout_id } })
+    expect(de_novo.json()).toMatchObject({ plano: "PREMIUM", status: "TRIALING" })
+  })
+
+  it("checkout de outra loja não ativa nada aqui", async () => {
+    const { app, assinaturaGateway } = await montarApp()
+    const ctx = await criarContexto()
+    const checkout = await iniciar(app, ctx.headers)
+    assinaturaGateway.registrar({ subscription_id: SUB, checkout_id: checkout.checkout_id, estabelecimento_id: "00000000-0000-4000-8000-000000000000", status: "ACTIVE", trial_expira_em: EM_7_DIAS })
+
+    const resposta = await app.inject({ method: "POST", url: "/billing/assinatura/sincronizar", headers: ctx.headers, payload: { checkout_id: checkout.checkout_id } })
+    expect(resposta.json()).toMatchObject({ plano: "FREE" })
+  })
+
+  it("400 — checkout_id fora do formato", async () => {
+    const { app } = await montarApp()
+    const ctx = await criarContexto()
+    const resposta = await app.inject({ method: "POST", url: "/billing/assinatura/sincronizar", headers: ctx.headers, payload: { checkout_id: "qualquer" } })
+    expect(resposta.statusCode).toBe(400)
+  })
+})
