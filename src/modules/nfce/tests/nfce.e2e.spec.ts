@@ -15,6 +15,7 @@ import { InMemoryAssinaturaGateway } from "@/modules/billing/gateway/InMemoryAss
 import type { Role } from "../../../../generated/prisma/client.js"
 import { nfceRoutes } from "../routes"
 import { AVISO_SIMULACAO } from "../espelho"
+import { clienteDaLoja } from "@/modules/pagamento/tests/pix-helpers"
 
 const CNPJ_VALIDO = "11222333000181"
 const CNPJ_OUTRA_LOJA = "11444777000161"
@@ -169,10 +170,10 @@ describe("NFC-e simulada após a venda paga — E2E (#81 — D3)", () => {
     const { app } = await montarApp()
     const ctx = await criarContexto()
     await prisma.cupom.create({
-      data: { estabelecimento_id: ctx.lojaId, codigo: "DEZ5", valor_desconto: 5 },
+      data: { estabelecimento_id: ctx.lojaId, codigo: "DEZ5", valor_desconto: 5, cliente_id: (await clienteDaLoja(ctx.lojaId)).id },
     })
 
-    const venda = (await pagarEmDinheiro(app, ctx, { cupom_codigo: "DEZ5" })).json()
+    const venda = (await pagarEmDinheiro(app, ctx, { cupom_codigo: "DEZ5", cliente_id: (await clienteDaLoja(ctx.lojaId)).id })).json()
     const { espelho } = (await consultar(app, ctx, venda.venda_id)).json()
 
     expect(espelho).toMatchObject({ subtotal_itens: 20, desconto: 5, total_venda: 15, total_cobrado: 15 })

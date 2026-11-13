@@ -26,7 +26,9 @@ import {
 } from "./dto/cliente.dto"
 import {
   createCupomSchema,
+  cupomIdParamsSchema,
   cupomResponseSchema,
+  listCupomUsosResponseSchema,
   listCuponsQuerySchema,
   listCuponsResponseSchema,
 } from "./dto/cupom.dto"
@@ -257,5 +259,51 @@ export async function crmRoutes(app: FastifyInstance) {
       },
     },
     async (req, res) => cupomController.list(req, res)
+  )
+
+  route.patch(
+    "/cupons/:id/desativar",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["CRM"],
+        summary: "Desativa um cupom",
+        description: `${TENANT_HEADER_DOC} Encerra o cupom antes da validade: ele deixa de ser aceito no pagamento (409 \`CUPOM_DESATIVADO\`). Os usos já feitos continuam no histórico. Caixa (CASHIER) não gerencia cupons.`,
+        security: [{ cookieAuth: [] }],
+        params: cupomIdParamsSchema,
+        response: {
+          200: cupomResponseSchema,
+          401: errorResponseSchema.describe("Sessão ausente ou inválida (code: UNAUTHORIZED)"),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_CUPONS)"
+          ),
+          404: errorResponseSchema.describe("Cupom não encontrado nesta loja (code: CUPOM_NAO_ENCONTRADO)"),
+        },
+      },
+    },
+    async (req, res) => cupomController.desativar(req, res)
+  )
+
+  route.get(
+    "/cupons/:id/usos",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["CRM"],
+        summary: "Lista os usos de um cupom",
+        description: `${TENANT_HEADER_DOC} Cada venda que usou o cupom: cliente, CPF mascarado, desconto concedido e data. Mais recentes primeiro. Caixa (CASHIER) não gerencia cupons.`,
+        security: [{ cookieAuth: [] }],
+        params: cupomIdParamsSchema,
+        response: {
+          200: listCupomUsosResponseSchema,
+          401: errorResponseSchema.describe("Sessão ausente ou inválida (code: UNAUTHORIZED)"),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_CUPONS)"
+          ),
+          404: errorResponseSchema.describe("Cupom não encontrado nesta loja (code: CUPOM_NAO_ENCONTRADO)"),
+        },
+      },
+    },
+    async (req, res) => cupomController.usos(req, res)
   )
 }
