@@ -57,6 +57,14 @@ enum NfeStatus {
   ERRO
 }
 
+enum TipoNotificacao {
+  ESTOQUE_BAIXO
+  ESTOQUE_ZERADO
+  VENDA_CANCELADA
+  PIX_CONFIRMADO
+  CAIXA_DIFERENCA
+}
+
 // Novos Enums para Auditoria de Estoque
 
 enum TipoMovimentacao {
@@ -105,6 +113,7 @@ model Estabelecimento {
   cupons        Cupom[]
   assinatura    Assinatura?
   convites      ConviteFuncionario[]
+  notificacoes  Notificacao[]
 
   @@map("estabelecimentos")
 }
@@ -458,4 +467,31 @@ model ItemVenda {
   @@index([venda_id])
   @@index([produto_id])
   @@map("itens_venda")
+}
+
+// Módulo: Notificações
+
+/// Avisos da loja exibidos no sininho do painel. São da LOJA, não da pessoa: a
+/// leitura vale para todos os membros (mesma lógica do turno de caixa).
+///
+/// `chave` deduplica avisos repetitivos (ex.: "estoque baixo" do mesmo produto
+/// a cada venda): o índice único PARCIAL `notificacoes_chave_nao_lida` — criado
+/// em SQL puro na migration, porque o Prisma não declara índice condicional —
+/// impede duas notificações NÃO LIDAS com a mesma chave na mesma loja. Depois
+/// de lida, a mesma chave pode voltar a notificar.
+model Notificacao {
+  id                 String          @id @default(uuid())
+  estabelecimento_id String
+  tipo               TipoNotificacao
+  titulo             String
+  mensagem           String
+  link               String? // Rota do front para onde o clique leva (ex.: "/estoque")
+  chave              String? // Deduplicação enquanto não lida (ver acima)
+  lida_em            DateTime?
+  criada_em          DateTime        @default(now())
+
+  estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id], onDelete: Cascade)
+
+  @@index([estabelecimento_id, criada_em])
+  @@map("notificacoes")
 }

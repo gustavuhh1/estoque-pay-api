@@ -4,6 +4,7 @@ import { EstoqueController } from "./controller/EstoqueController"
 import { EstoqueService } from "./service/EstoqueService"
 import { EstoquePrismaRepository } from "./repository/EstoquePrismaRepository"
 import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
+import { criarNotificacaoService } from "@/modules/notificacao/service/criarNotificacaoService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -29,7 +30,11 @@ export async function estoqueRoutes(app: FastifyInstance) {
   const produtoRepository = new ProdutoPrismaRepository(prisma)
 
   // 2. Instanciar Service (Application)
-  const estoqueService = new EstoqueService(estoqueRepository, produtoRepository)
+  const estoqueService = new EstoqueService(
+    estoqueRepository,
+    produtoRepository,
+    criarNotificacaoService()
+  )
 
   // 3. Instanciar Controller (Presentation)
   const estoqueController = new EstoqueController(estoqueService)

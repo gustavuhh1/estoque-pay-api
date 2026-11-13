@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from "@fastify/type-provider-zod"
 import { CaixaController } from "./controller/CaixaController"
 import { CaixaService } from "./service/CaixaService"
 import { CaixaPrismaRepository } from "./repository/CaixaPrismaRepository"
+import { criarNotificacaoService } from "@/modules/notificacao/service/criarNotificacaoService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -25,7 +26,7 @@ export async function caixaRoutes(app: FastifyInstance) {
   const caixaRepository = new CaixaPrismaRepository(prisma)
 
   // 2. Instanciar Service (Application)
-  const caixaService = new CaixaService(caixaRepository)
+  const caixaService = new CaixaService(caixaRepository, criarNotificacaoService())
 
   // 3. Instanciar Controller (Presentation)
   const caixaController = new CaixaController(caixaService)
