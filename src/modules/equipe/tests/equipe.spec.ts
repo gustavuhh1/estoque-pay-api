@@ -277,6 +277,65 @@ describe("EquipeService", () => {
     })
   })
 
+  describe("cancelarConvite", () => {
+    async function criarConvite(estabelecimentoId: string, criadoPorId: string, role: Role = "CASHIER", email = `convidado-${randomUUID()}@email.com`) {
+      return prisma.conviteFuncionario.create({ data: { email, estabelecimentoId, role, criadoPorId } })
+    }
+
+    it("apaga o convite pendente e ele some da listagem", async () => {
+      const loja = await criarEstabelecimento()
+      const owner = await criarUsuario()
+      await criarMembro(owner.id, loja.id, "OWNER")
+      const convite = await criarConvite(loja.id, owner.id)
+
+      await sut.cancelarConvite(loja.id, "OWNER", convite.id)
+
+      const { convitesPendentes } = await sut.listar(loja.id, "OWNER")
+      expect(convitesPendentes).toHaveLength(0)
+    })
+
+    it("quem foi convidado e se cadastra depois do cancelamento não ganha acesso", async () => {
+      const loja = await criarEstabelecimento()
+      const owner = await criarUsuario()
+      await criarMembro(owner.id, loja.id, "OWNER")
+      const convite = await criarConvite(loja.id, owner.id, "CASHIER", "cancelado@email.com")
+      await sut.cancelarConvite(loja.id, "OWNER", convite.id)
+
+      const novo = await criarUsuario("cancelado@email.com")
+      await vincularConvitesPendentes(prisma, { id: novo.id, email: novo.email })
+
+      expect(await prisma.membroEstabelecimento.count({ where: { userId: novo.id } })).toBe(0)
+    })
+
+    it("404 — convite de outra loja, já aceito ou inexistente", async () => {
+      const loja = await criarEstabelecimento()
+      const outraLoja = await criarEstabelecimento("11444777000161")
+      const owner = await criarUsuario()
+      await criarMembro(owner.id, loja.id, "OWNER")
+      const deFora = await criarConvite(outraLoja.id, owner.id)
+      const aceito = await prisma.conviteFuncionario.update({
+        where: { id: (await criarConvite(loja.id, owner.id)).id },
+        data: { aceitoEm: new Date() },
+      })
+
+      await expect(sut.cancelarConvite(loja.id, "OWNER", deFora.id)).rejects.toBeInstanceOf(NotFoundError)
+      await expect(sut.cancelarConvite(loja.id, "OWNER", aceito.id)).rejects.toBeInstanceOf(NotFoundError)
+      await expect(sut.cancelarConvite(loja.id, "OWNER", randomUUID())).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it("403 — Caixa não cancela; Gestor só cancela convite de Caixa", async () => {
+      const loja = await criarEstabelecimento()
+      const owner = await criarUsuario()
+      await criarMembro(owner.id, loja.id, "OWNER")
+      const deCaixa = await criarConvite(loja.id, owner.id, "CASHIER")
+      const deGestor = await criarConvite(loja.id, owner.id, "MANAGER")
+
+      await expect(sut.cancelarConvite(loja.id, "CASHIER", deCaixa.id)).rejects.toBeInstanceOf(ForbiddenError)
+      await expect(sut.cancelarConvite(loja.id, "MANAGER", deGestor.id)).rejects.toMatchObject({ code: "ROLE_CANNOT_ASSIGN_ROLE" })
+      await expect(sut.cancelarConvite(loja.id, "MANAGER", deCaixa.id)).resolves.toBeUndefined()
+    })
+  })
+
   describe("vincularConvitesPendentes (hook de cadastro, ver src/lib/auth.ts)", () => {
     it("cria o vínculo e marca o convite como aceito quando o usuário se cadastra", async () => {
       const loja = await criarEstabelecimento()

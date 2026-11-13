@@ -220,4 +220,24 @@ export class EquipeService {
     // a cada request, então não há brecha de segurança em deixar a sessão viva).
     await this.equipeRepository.revogarSessoes(membro.userId)
   }
+
+  /**
+   * Cancela um convite que ainda não foi aceito: a vaga volta para a loja e,
+   * se a pessoa criar a conta depois, não ganha acesso (o hook de cadastro só
+   * vincula convites que existem). Gestor só cancela convite de Caixa — o
+   * mesmo limite de quem ele pode convidar.
+   */
+  async cancelarConvite(estabelecimentoId: string, actingRole: Role, conviteId: string): Promise<void> {
+    this.garantirAcesso(actingRole)
+
+    const convite = await this.conviteRepository.findPendenteByIdAndEstabelecimento(conviteId, estabelecimentoId)
+
+    if (!convite) {
+      throw new NotFoundError("Convite pendente não encontrado nesta loja.", "CONVITE_NAO_ENCONTRADO")
+    }
+
+    this.garantirCargoAtribuivel(actingRole, convite.role)
+
+    await this.conviteRepository.delete(convite.id)
+  }
 }

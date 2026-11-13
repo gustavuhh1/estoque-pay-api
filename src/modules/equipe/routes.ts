@@ -144,4 +144,26 @@ export async function equipeRoutes(app: FastifyInstance) {
     },
     async (req, res) => equipeController.excluir(req, res)
   )
+
+  route.delete(
+    "/convites/:id",
+    {
+      preHandler: [requireAuth, requireTenant],
+      schema: {
+        tags: ["Equipe"],
+        summary: "Cancela um convite pendente da loja ativa",
+        description: `${TENANT_HEADER_DOC} Só convites ainda não aceitos (quem já criou a conta é membro e sai pelo \`DELETE /equipe/:id\`). A vaga volta para a loja e, se a pessoa se cadastrar depois, não ganha acesso. Gestor só cancela convites de Caixa.`,
+        security: [{ cookieAuth: [] }],
+        params: funcionarioParamsSchema,
+        response: {
+          401: errorResponseSchema.describe("Sessão ausente ou inválida (code: UNAUTHORIZED)"),
+          403: errorResponseSchema.describe(
+            "Sem vínculo (code: TENANT_ACCESS_DENIED) ou cargo sem permissão (code: ROLE_CANNOT_MANAGE_EQUIPE | ROLE_CANNOT_ASSIGN_ROLE)"
+          ),
+          404: errorResponseSchema.describe("Convite pendente não encontrado nesta loja (code: CONVITE_NAO_ENCONTRADO)"),
+        },
+      },
+    },
+    async (req, res) => equipeController.cancelarConvite(req, res)
+  )
 }
