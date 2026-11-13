@@ -23,6 +23,7 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
       quantidade_minima: data.quantidade_minima,
       ncm: data.ncm ?? null,
       cfop: data.cfop ?? null,
+      imagem_url: data.imagem_url ?? null,
       ativo: data.ativo,
     }
 
@@ -102,6 +103,7 @@ export class ProdutoPrismaRepository implements IProdutoRepository {
         }),
         ...(data.ncm !== undefined && { ncm: data.ncm }),
         ...(data.cfop !== undefined && { cfop: data.cfop }),
+        ...(data.imagem_url !== undefined && { imagem_url: data.imagem_url }),
         ...(data.ativo !== undefined && { ativo: data.ativo }),
       },
     })

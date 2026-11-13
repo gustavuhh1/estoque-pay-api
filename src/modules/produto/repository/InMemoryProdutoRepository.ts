@@ -26,6 +26,7 @@ export class InMemoryProdutoRepository implements IProdutoRepository {
       quantidade_minima: new Prisma.Decimal(data.quantidade_minima),
       ncm: data.ncm ?? null,
       cfop: data.cfop ?? null,
+      imagem_url: data.imagem_url ?? null,
       ativo: data.ativo,
       deletado_em: null,
       criado_em: new Date(),
