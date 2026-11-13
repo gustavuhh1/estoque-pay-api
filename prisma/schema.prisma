@@ -45,6 +45,11 @@ enum MetodoPagamento {
   CREDITO
 }
 
+enum TipoDescontoCupom {
+  VALOR // Valor fixo em R$
+  PERCENTUAL // Porcentagem sobre o subtotal dos itens
+}
+
 enum StatusPagamento {
   PENDENTE
   PAGO
@@ -264,6 +269,7 @@ model Cliente {
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   vendas          Venda[]
   cupons          Cupom[]
+  cupom_usos      CupomUso[]
 
   // CPF é único por loja, não global: o mesmo cliente pode existir em tenants diferentes
   @@unique([estabelecimento_id, cpf])
@@ -271,23 +277,46 @@ model Cliente {
 }
 
 model Cupom {
-  id                 String    @id @default(uuid())
+  id                 String            @id @default(uuid())
   estabelecimento_id String
-  cliente_id         String? // null = cupom genérico da loja, não nominal
+  cliente_id         String? // null = cupom global da loja: qualquer cliente usa, 1 vez por CPF
   codigo             String
-  valor_desconto     Decimal   @db.Decimal(10, 2)
+  tipo_desconto      TipoDescontoCupom @default(VALOR)
+  valor_desconto     Decimal           @db.Decimal(10, 2) // R$ em VALOR; % (0–100) em PERCENTUAL
   expira_em          DateTime?
-  resgatado_em       DateTime?
-  venda_id           String?   @unique // Em qual venda o cupom foi consumido
-  criado_em          DateTime  @default(now())
+  resgatado_em       DateTime? // Só cupom individual: é de uso único
+  venda_id           String?           @unique // Em qual venda o cupom individual foi consumido
+  desativado_em      DateTime? // O dono encerrou o cupom antes da validade
+  criado_em          DateTime          @default(now())
 
   estabelecimento Estabelecimento @relation(fields: [estabelecimento_id], references: [id])
   cliente         Cliente?        @relation(fields: [cliente_id], references: [id])
   venda           Venda?          @relation(fields: [venda_id], references: [id])
+  usos            CupomUso[]
 
   @@unique([estabelecimento_id, codigo])
   @@index([cliente_id])
   @@map("cupons")
+}
+
+/// Cada uso de um cupom (individual ou global). O unique (cupom, cpf) é a trava
+/// "1 uso por CPF" do cupom global, inclusive contra duas vendas simultâneas.
+model CupomUso {
+  id         String   @id @default(uuid())
+  cupom_id   String
+  venda_id   String   @unique
+  cliente_id String
+  cpf        String // CPF do cliente no momento do uso (só dígitos)
+  desconto   Decimal  @db.Decimal(10, 2) // Quanto o cupom abateu nesta venda, em R$
+  usado_em   DateTime @default(now())
+
+  cupom   Cupom   @relation(fields: [cupom_id], references: [id], onDelete: Cascade)
+  venda   Venda   @relation(fields: [venda_id], references: [id], onDelete: Cascade)
+  cliente Cliente @relation(fields: [cliente_id], references: [id])
+
+  @@unique([cupom_id, cpf])
+  @@index([cupom_id, usado_em])
+  @@map("cupom_usos")
 }
 
 // Módulo: Estoque
@@ -416,8 +445,8 @@ model Venda {
   nfe_enviada_em    DateTime?
   // NFC-e SIMULADA (D3, #81). Numeração sequencial por loja e o retrato imutável do documento
   // (loja, itens, taxa, consumidor) de onde o HTML imprimível é gerado. Nada aqui é fiscal.
-  nfe_numero  Int?
-  nfe_espelho Json?
+  nfe_numero        Int?
+  nfe_espelho       Json?
 
   // Trilha de cancelamento
   cancelada_em     DateTime?
@@ -433,6 +462,7 @@ model Venda {
   turno           TurnoCaixa?     @relation(fields: [turno_id], references: [id])
   itens           ItemVenda[]
   cupom           Cupom?
+  cupom_uso       CupomUso?
 
   // Número único por loja. NULL não conflita, então vendas sem nota ficam de fora.
   @@unique([estabelecimento_id, nfe_numero])

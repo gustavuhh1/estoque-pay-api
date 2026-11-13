@@ -3,8 +3,11 @@ import { Prisma, type Cupom, type Role } from "../../../../generated/prisma/clie
 import {
   CupomCodigoAlreadyInUseError,
   CupomDeOutroClienteError,
+  CupomDesativadoError,
+  CupomExigeClienteError,
   CupomExpiradoError,
   CupomJaResgatadoError,
+  CupomJaUsadoPeloClienteError,
   ForbiddenError,
   NotFoundError,
 } from "@/shared/errors"
@@ -22,7 +25,10 @@ function gerarCodigo(): string {
   return `FID-${sorteio(4)}-${sorteio(4)}`
 }
 
-/** RF02.3 — issue #58: emissão, listagem e validação de resgate de cupons. */
+/** Cupom pronto para entrar na venda: o próprio cupom e o CPF de quem está usando. */
+export type CupomParaResgate = { cupom: Cupom; cliente_id: string; cpf: string }
+
+/** RF02.3 — issue #58: emissão, listagem, gestão e validação de resgate de cupons. */
 export class CupomService {
   constructor(
     private cupomRepository: ICupomRepository,
@@ -63,6 +69,7 @@ export class CupomService {
         estabelecimento_id: estabelecimentoId,
         cliente_id: data.cliente_id,
         codigo,
+        tipo_desconto: data.tipo_desconto ?? "VALOR",
         valor_desconto: data.valor_desconto,
         expira_em: data.expira_em,
       })
@@ -80,25 +87,53 @@ export class CupomService {
   }
 
   /** Sem trava de cargo: o Caixa precisa ver os cupons do cliente no balcão. */
-  async list(estabelecimentoId: string, query: ListCuponsQuery): Promise<Cupom[]> {
+  async list(estabelecimentoId: string, query: ListCuponsQuery) {
     return this.cupomRepository.findManyByEstabelecimento(estabelecimentoId, query)
+  }
+
+  private async buscarDaLoja(id: string, estabelecimentoId: string) {
+    const cupom = await this.cupomRepository.findByIdAndEstabelecimento(id, estabelecimentoId)
+    if (!cupom) throw new NotFoundError("Cupom não encontrado nesta loja.", "CUPOM_NAO_ENCONTRADO")
+    return cupom
+  }
+
+  /** O dono encerra o cupom antes da validade. Os usos já feitos continuam no histórico. */
+  async desativar(id: string, estabelecimentoId: string, role: Role) {
+    this.garantirAcessoEmissao(role)
+    await this.buscarDaLoja(id, estabelecimentoId)
+    return this.cupomRepository.desativar(id)
+  }
+
+  /** Quem usou o cupom, quando e quanto abateu. Gestão: mesmo cargo de quem emite. */
+  async usos(id: string, estabelecimentoId: string, role: Role) {
+    this.garantirAcessoEmissao(role)
+    await this.buscarDaLoja(id, estabelecimentoId)
+    return this.cupomRepository.findUsos(id)
   }
 
   /**
    * Checagens de resgate feitas ANTES de abrir a transação da venda, para o
-   * caixa receber o motivo certo (expirado, de outro cliente...). A trava
-   * contra resgate duplo simultâneo NÃO é esta: é o `updateMany` condicional
+   * caixa receber o motivo certo (expirado, de outro cliente...). As travas
+   * contra resgate duplo simultâneo NÃO são estas: são o `updateMany`
+   * condicional (individual) e o unique (cupom, cpf) de cupom_usos (global),
    * dentro da transação da venda (ver VendaPrismaRepository).
+   *
+   * Todo uso precisa de cliente identificado: o individual porque é nominal,
+   * o global porque a regra é "1 uso por CPF".
    */
   async validarParaResgate(
     estabelecimentoId: string,
     codigo: string,
     clienteId: string | undefined
-  ): Promise<Cupom> {
+  ): Promise<CupomParaResgate> {
     const cupom = await this.cupomRepository.findByCodigo(estabelecimentoId, codigo)
 
     if (!cupom) {
       throw new NotFoundError("Cupom não encontrado nesta loja.", "CUPOM_NAO_ENCONTRADO")
+    }
+
+    if (cupom.desativado_em) {
+      throw new CupomDesativadoError()
     }
 
     if (cupom.resgatado_em) {
@@ -109,12 +144,25 @@ export class CupomService {
       throw new CupomExpiradoError(cupom.expira_em)
     }
 
-    // Cupom nominal só vale na venda do próprio dono. Cupom genérico
-    // (cliente_id null) vale para qualquer venda, com ou sem cliente.
+    // Cupom individual só vale na venda do próprio dono.
     if (cupom.cliente_id && cupom.cliente_id !== clienteId) {
       throw new CupomDeOutroClienteError()
     }
 
-    return cupom
+    if (!clienteId) {
+      throw new CupomExigeClienteError()
+    }
+
+    const cliente = await this.clienteRepository.findByIdAndEstabelecimento(clienteId, estabelecimentoId)
+
+    if (!cliente) {
+      throw new NotFoundError("Cliente não encontrado nesta loja.", "CLIENTE_NAO_ENCONTRADO")
+    }
+
+    if (await this.cupomRepository.existsUso(cupom.id, cliente.cpf)) {
+      throw cupom.cliente_id ? new CupomJaResgatadoError() : new CupomJaUsadoPeloClienteError()
+    }
+
+    return { cupom, cliente_id: cliente.id, cpf: cliente.cpf }
   }
 }

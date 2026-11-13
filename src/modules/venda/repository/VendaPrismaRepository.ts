@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "../../../../generated/prisma/client.js"
-import { CupomJaResgatadoError } from "@/shared/errors"
+import { CupomJaResgatadoError, CupomJaUsadoPeloClienteError } from "@/shared/errors"
 import type { IEstoqueRepository } from "@/modules/estoque/repository/IEstoqueRepository"
 import type {
   CancelarVendaParams,
@@ -151,6 +151,8 @@ export class VendaPrismaRepository implements IVendaRepository {
         where: { venda_id: vendaId },
         data: { resgatado_em: null, venda_id: null },
       })
+      // E o CPF pode usar o cupom global de novo.
+      await tx.cupomUso.deleteMany({ where: { venda_id: vendaId } })
 
       return true
     })
@@ -189,19 +191,43 @@ export class VendaPrismaRepository implements IVendaRepository {
       include: RELACOES_DA_VENDA,
     })
 
-    if (params.cupom_id) {
-      // Update CONDICIONAL: só baixa se ainda não foi resgatado. Duas vendas
-      // simultâneas com o mesmo cupom passam as duas pela validação prévia
-      // do CupomService; aqui o row lock do Postgres serializa as duas e a
-      // segunda encontra `resgatado_em` preenchido, atualiza 0 linhas e
-      // derruba a própria transação — o desconto não é dado duas vezes.
-      const resgate = await tx.cupom.updateMany({
-        where: { id: params.cupom_id, resgatado_em: null },
-        data: { resgatado_em: new Date(), venda_id: venda.id },
-      })
+    if (params.cupom) {
+      const { cupom } = params
 
-      if (resgate.count === 0) {
-        throw new CupomJaResgatadoError()
+      if (cupom.individual) {
+        // Update CONDICIONAL: só baixa se ainda não foi resgatado. Duas vendas
+        // simultâneas com o mesmo cupom passam as duas pela validação prévia
+        // do CupomService; aqui o row lock do Postgres serializa as duas e a
+        // segunda encontra `resgatado_em` preenchido, atualiza 0 linhas e
+        // derruba a própria transação — o desconto não é dado duas vezes.
+        const resgate = await tx.cupom.updateMany({
+          where: { id: cupom.id, resgatado_em: null },
+          data: { resgatado_em: new Date(), venda_id: venda.id },
+        })
+
+        if (resgate.count === 0) {
+          throw new CupomJaResgatadoError()
+        }
+      }
+
+      // Todo uso fica registrado (é o que a tela de gestão lista). No cupom
+      // global o unique (cupom_id, cpf) é a trava "1 uso por CPF" contra duas
+      // vendas simultâneas do mesmo cliente.
+      try {
+        await tx.cupomUso.create({
+          data: {
+            cupom_id: cupom.id,
+            venda_id: venda.id,
+            cliente_id: cupom.cliente_id,
+            cpf: cupom.cpf,
+            desconto: new Prisma.Decimal(cupom.desconto.toString()),
+          },
+        })
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          throw cupom.individual ? new CupomJaResgatadoError() : new CupomJaUsadoPeloClienteError()
+        }
+        throw error
       }
     }
 
@@ -287,6 +313,7 @@ export class VendaPrismaRepository implements IVendaRepository {
         where: { venda_id: params.id },
         data: { resgatado_em: null, venda_id: null },
       })
+      await tx.cupomUso.deleteMany({ where: { venda_id: params.id } })
 
       return venda
     })
