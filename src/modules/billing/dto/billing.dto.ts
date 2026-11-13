@@ -90,6 +90,12 @@ export const iniciarAssinaturaSchema = z.object({
 })
 export type IniciarAssinaturaDTO = z.infer<typeof iniciarAssinaturaSchema>
 
+/** Checkout que o front guardou ao iniciar a assinatura, para confirmar na volta da AbacatePay. */
+export const sincronizarAssinaturaSchema = z.object({
+  checkout_id: z.string().regex(/^bill_[A-Za-z0-9_-]+$/, "Informe o checkout_id (bill_...) devolvido ao iniciar a assinatura."),
+})
+export type SincronizarAssinaturaDTO = z.infer<typeof sincronizarAssinaturaSchema>
+
 export const assinaturaIniciadaResponseSchema = z.object({
   /** `bill_...` */
   checkout_id: z.string(),

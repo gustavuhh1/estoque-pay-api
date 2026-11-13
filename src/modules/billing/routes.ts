@@ -14,6 +14,7 @@ import {
   assinaturaIniciadaResponseSchema,
   assinaturaResponseSchema,
   iniciarAssinaturaSchema,
+  sincronizarAssinaturaSchema,
   planosResponseSchema,
 } from "./dto/billing.dto"
 
@@ -95,6 +96,27 @@ export function billingRoutes(gateway: IAssinaturaGateway = new AbacatePayAssina
         },
       },
       async (req, res) => billingController.iniciar(req, res)
+    )
+
+    route.post(
+      "/assinatura/sincronizar",
+      {
+        preHandler: [requireAuth, requireTenant],
+        schema: {
+          tags: ["Billing"],
+          summary: "Confirma a assinatura na volta do checkout, sem depender do webhook",
+          description: `${TENANT_HEADER_DOC} Recebe o \`checkout_id\` (\`bill_...\`) devolvido pelo \`POST /billing/assinatura\`, consulta o checkout **na AbacatePay** e aplica o mesmo estado que o webhook aplicaria (TRIALING/ACTIVE quando o cartão foi aceito; nada enquanto o checkout está pendente). Só vale checkout desta loja (o \`externalId\` do provedor manda). Idempotente: chamar de novo não muda nada. Devolve o mesmo corpo de \`GET /billing/assinatura\`.`,
+          security: [{ cookieAuth: [] }],
+          body: sincronizarAssinaturaSchema,
+          response: {
+            200: assinaturaResponseSchema,
+            400: errorResponseSchema.describe("checkout_id inválido ou recusa do provedor (code: VALIDATION_ERROR | GATEWAY_ASSINATURA_ERRO)"),
+            401: errorResponseSchema.describe("Sessão ausente ou inválida"),
+            403: errorResponseSchema.describe("Sem vínculo com esta loja"),
+          },
+        },
+      },
+      async (req, res) => billingController.sincronizar(req, res)
     )
 
     route.post(

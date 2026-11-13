@@ -4,6 +4,7 @@ import {
   montarPlanosResponse,
   toAssinaturaResponse,
   type IniciarAssinaturaDTO,
+  type SincronizarAssinaturaDTO,
 } from "../dto/billing.dto"
 import type { AssinaturaService } from "../service/AssinaturaService"
 import type { PlanoService } from "../service/PlanoService"
@@ -49,6 +50,23 @@ export class BillingController {
     )
 
     return reply.status(201).send(iniciada)
+  }
+
+  /** Volta do checkout: confirma com a AbacatePay sem depender do webhook. */
+  async sincronizar(
+    request: FastifyRequest<{ Body: SincronizarAssinaturaDTO }>,
+    reply: FastifyReply
+  ) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    await this.assinaturaService.sincronizarCheckout(
+      request.membro.estabelecimentoId,
+      request.body.checkout_id
+    )
+
+    return reply.status(200).send(await this.montarAssinatura(request.membro.estabelecimentoId))
   }
 
   /** #66 */
