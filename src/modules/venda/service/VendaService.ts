@@ -8,6 +8,7 @@ import {
 import type { IProdutoRepository } from "@/modules/produto/repository/IProdutoRepository"
 import type { ItemCarrinhoDTO, ListarVendasQuery, VendaComItens } from "../dto/venda.dto"
 import type { IVendaRepository } from "../repository/IVendaRepository"
+import type { NotificacaoService } from "@/modules/notificacao/service/NotificacaoService"
 
 export interface ItemPrecificado {
   produto_id: string
@@ -31,7 +32,9 @@ export interface CarrinhoPrecificado {
 export class VendaService {
   constructor(
     private produtoRepository: IProdutoRepository,
-    private vendaRepository: IVendaRepository
+    private vendaRepository: IVendaRepository,
+    /** Sininho do painel. Opcional: só as rotas de produção injetam. */
+    private notificacaoService?: NotificacaoService
   ) {}
 
   /**
@@ -182,7 +185,7 @@ export class VendaService {
       throw new VendaNaoPagaError(venda.status_pagamento)
     }
 
-    return this.vendaRepository.cancelar({
+    const cancelada = await this.vendaRepository.cancelar({
       id: venda.id,
       cancelada_por_id: usuarioId,
       estabelecimento_id: estabelecimentoId,
@@ -191,5 +194,10 @@ export class VendaService {
         quantidade: Number(item.quantidade),
       })),
     })
+
+    // Depois do commit e sem nunca lançar: o aviso não desfaz o cancelamento.
+    await this.notificacaoService?.aposVendaCancelada(cancelada)
+
+    return cancelada
   }
 }
