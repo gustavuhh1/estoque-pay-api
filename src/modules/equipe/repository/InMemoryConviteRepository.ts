@@ -35,4 +35,12 @@ export class InMemoryConviteRepository implements IConviteRepository {
   async findManyPendentesByEstabelecimento(estabelecimentoId: string) {
     return this.convites.filter((c) => c.estabelecimentoId === estabelecimentoId && c.aceitoEm === null)
   }
+
+  async findPendenteByIdAndEstabelecimento(id: string, estabelecimentoId: string) {
+    return this.convites.find((c) => c.id === id && c.estabelecimentoId === estabelecimentoId && c.aceitoEm === null) ?? null
+  }
+
+  async delete(id: string) {
+    this.convites = this.convites.filter((c) => c.id !== id)
+  }
 }

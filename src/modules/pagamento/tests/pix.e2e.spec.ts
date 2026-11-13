@@ -4,6 +4,7 @@ import { InMemoryPagamentoGateway } from "../gateway/InMemoryPagamentoGateway"
 import type { CriarCobrancaPixParams } from "../gateway/IPagamentoGateway"
 import {
   CNPJ_OUTRA_LOJA,
+  clienteDaLoja,
   criarContexto,
   estoqueDe,
   iniciarPix,
@@ -62,10 +63,10 @@ describe("POST /pagamento/pix — E2E (#52, D1)", () => {
     const app = await montarApp(gateway)
     const ctx = await criarContexto()
     await prisma.cupom.create({
-      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5 },
+      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5, cliente_id: (await clienteDaLoja(ctx.lojaId)).id },
     })
 
-    const response = await iniciarPix(app, ctx, { cupom_codigo: "PIX5" })
+    const response = await iniciarPix(app, ctx, { cupom_codigo: "PIX5", cliente_id: (await clienteDaLoja(ctx.lojaId)).id })
 
     expect(response.statusCode).toBe(201)
     const corpo = response.json()
@@ -74,7 +75,7 @@ describe("POST /pagamento/pix — E2E (#52, D1)", () => {
     expect(corpo.total_cobrado).toBe(5.87)
 
     // O cupom fica consumido já na criação: um 2º Pix não pode usá-lo.
-    const segundo = await iniciarPix(app, ctx, { cupom_codigo: "PIX5" })
+    const segundo = await iniciarPix(app, ctx, { cupom_codigo: "PIX5", cliente_id: (await clienteDaLoja(ctx.lojaId)).id })
     expect(segundo.statusCode).toBe(409)
     expect(segundo.json().code).toBe("CUPOM_JA_RESGATADO")
   })
@@ -100,10 +101,10 @@ describe("POST /pagamento/pix — E2E (#52, D1)", () => {
     const app = await montarApp(new GatewayQueFalha())
     const ctx = await criarContexto()
     await prisma.cupom.create({
-      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5 },
+      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5, cliente_id: (await clienteDaLoja(ctx.lojaId)).id },
     })
 
-    const response = await iniciarPix(app, ctx, { cupom_codigo: "PIX5" })
+    const response = await iniciarPix(app, ctx, { cupom_codigo: "PIX5", cliente_id: (await clienteDaLoja(ctx.lojaId)).id })
 
     expect(response.statusCode).toBe(500)
     expect(await prisma.venda.count()).toBe(0)
@@ -196,9 +197,9 @@ describe("GET /pagamento/pix/:payment_id/status — E2E (#52)", () => {
     const app = await montarApp(gateway)
     const ctx = await criarContexto()
     await prisma.cupom.create({
-      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5 },
+      data: { estabelecimento_id: ctx.lojaId, codigo: "PIX5", valor_desconto: 5, cliente_id: (await clienteDaLoja(ctx.lojaId)).id },
     })
-    const { payment_id } = (await iniciarPix(app, ctx, { cupom_codigo: "PIX5" })).json()
+    const { payment_id } = (await iniciarPix(app, ctx, { cupom_codigo: "PIX5", cliente_id: (await clienteDaLoja(ctx.lojaId)).id })).json()
     gateway.definirStatus(payment_id, "EXPIRED")
 
     const response = await app.inject({

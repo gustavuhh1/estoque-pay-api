@@ -21,6 +21,7 @@ import { AbacatePayAssinaturaGateway } from "@/modules/billing/gateway/AbacatePa
 import type { IAssinaturaGateway } from "@/modules/billing/gateway/IAssinaturaGateway"
 import { PlanoPrismaRepository } from "@/modules/billing/repository/PlanoPrismaRepository"
 import { criarNfceService } from "@/modules/nfce/service/criarNfceService"
+import { criarNotificacaoService } from "@/modules/notificacao/service/criarNotificacaoService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -66,7 +67,8 @@ export function pagamentoRoutes(
       new ClienteService(clienteRepository, new PlanoService(new PlanoPrismaRepository(prisma))),
       new CupomService(new CupomPrismaRepository(prisma), clienteRepository),
       gateway,
-      criarNfceService()
+      criarNfceService(),
+      criarNotificacaoService()
     )
     const pagamentoController = new PagamentoController(pagamentoService)
     const pixController = new PixController(pagamentoService)

@@ -87,4 +87,18 @@ export class EquipeController {
 
     return reply.status(204).send()
   }
+
+  async cancelarConvite(request: FastifyRequest<{ Params: FuncionarioParams }>, reply: FastifyReply) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    await this.equipeService.cancelarConvite(
+      request.membro.estabelecimentoId,
+      request.membro.role,
+      request.params.id
+    )
+
+    return reply.status(204).send()
+  }
 }

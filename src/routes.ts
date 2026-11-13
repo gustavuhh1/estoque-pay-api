@@ -12,6 +12,7 @@ import { billingRoutes } from "@/modules/billing/routes"
 import { nfceRoutes } from "@/modules/nfce/routes"
 import { healthRoutes } from "@/modules/health/routes"
 import { perfilRoutes } from "@/modules/perfil/routes"
+import { notificacaoRoutes } from "@/modules/notificacao/routes"
 import type { FastifyInstance } from "fastify"
 
 export default async function routes(app: FastifyInstance) {
@@ -30,4 +31,5 @@ export default async function routes(app: FastifyInstance) {
   app.register(billingRoutes(), { prefix: "/billing" })
   // app.register(pdvRoutes, { prefix: "/pdv" })
   app.register(nfceRoutes, { prefix: "/nfce" })
+  app.register(notificacaoRoutes, { prefix: "/notificacao" })
 }

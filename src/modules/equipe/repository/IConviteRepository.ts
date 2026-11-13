@@ -15,4 +15,7 @@ export interface IConviteRepository {
    */
   upsertPendente(data: UpsertConviteParams): Promise<ConviteFuncionario>
   findManyPendentesByEstabelecimento(estabelecimentoId: string): Promise<ConviteFuncionario[]>
+  /** Só convites ainda não aceitos: o aceito já virou membro e sai pela exclusão de membro. */
+  findPendenteByIdAndEstabelecimento(id: string, estabelecimentoId: string): Promise<ConviteFuncionario | null>
+  delete(id: string): Promise<void>
 }

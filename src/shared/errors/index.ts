@@ -157,6 +157,26 @@ export class CupomExpiradoError extends ConflictError {
  * cliente. É o que faz o cupom de fidelidade ser "atrelado ao cliente" (RF02.3)
  * e não um código que qualquer um no balcão pode usar.
  */
+export class CupomDesativadoError extends ConflictError {
+  constructor(message = "Este cupom foi desativado pela loja.") {
+    super(message, "CUPOM_DESATIVADO", { field: "cupom_codigo" })
+  }
+}
+
+/** Todo uso de cupom fica ligado a um CPF: sem cliente identificado não há como travar o "1 por CPF". */
+export class CupomExigeClienteError extends ConflictError {
+  constructor(message = "Identifique o cliente pelo CPF para usar este cupom.") {
+    super(message, "CUPOM_EXIGE_CLIENTE", { field: "cliente_id" })
+  }
+}
+
+/** Cupom global: cada CPF usa uma vez. A trava definitiva é o unique (cupom_id, cpf) de cupom_usos. */
+export class CupomJaUsadoPeloClienteError extends ConflictError {
+  constructor(message = "Este cliente já usou este cupom.") {
+    super(message, "CUPOM_JA_USADO_PELO_CLIENTE", { field: "cupom_codigo" })
+  }
+}
+
 export class CupomDeOutroClienteError extends ConflictError {
   constructor(
     message = "Este cupom é nominal: só pode ser usado numa venda vinculada ao cliente dono dele."

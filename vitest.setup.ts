@@ -25,6 +25,8 @@ beforeEach(async () => {
   // protege o setup caso algum onDelete mude no schema.
   // Cupom aponta para Venda e Cliente; Cliente é apontado por Venda — por isso
   // cupom sai antes da venda e cliente só depois dela.
+  await prisma.notificacao.deleteMany()
+  await prisma.cupomUso.deleteMany()
   await prisma.cupom.deleteMany()
   await prisma.itemVenda.deleteMany()
   await prisma.venda.deleteMany()

@@ -5,6 +5,7 @@ import { VendaService } from "./service/VendaService"
 import { VendaPrismaRepository } from "./repository/VendaPrismaRepository"
 import { ProdutoPrismaRepository } from "@/modules/produto/repository/ProdutoPrismaRepository"
 import { EstoquePrismaRepository } from "@/modules/estoque/repository/EstoquePrismaRepository"
+import { criarNotificacaoService } from "@/modules/notificacao/service/criarNotificacaoService"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/shared/middlewares/require-auth"
 import { requireTenant } from "@/shared/middlewares/require-tenant"
@@ -34,7 +35,11 @@ export async function vendaRoutes(app: FastifyInstance) {
     prisma,
     new EstoquePrismaRepository(prisma)
   )
-  const vendaService = new VendaService(produtoRepository, vendaRepository)
+  const vendaService = new VendaService(
+    produtoRepository,
+    vendaRepository,
+    criarNotificacaoService()
+  )
   const vendaController = new VendaController(vendaService)
 
   const route = app.withTypeProvider<ZodTypeProvider>()

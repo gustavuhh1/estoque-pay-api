@@ -82,3 +82,9 @@ export async function estoqueDe(produtoId: string) {
   const produto = await prisma.produto.findUniqueOrThrow({ where: { id: produtoId } })
   return Number(produto.quantidade_atual)
 }
+
+/** Cliente fixo da loja: todo uso de cupom exige cliente identificado (o CPF trava o cupom global). */
+export async function clienteDaLoja(estabelecimentoId: string) {
+  const existente = await prisma.cliente.findFirst({ where: { estabelecimento_id: estabelecimentoId } })
+  return existente ?? prisma.cliente.create({ data: { estabelecimento_id: estabelecimentoId, nome: "Cliente do Cupom", cpf: "52998224725" } })
+}

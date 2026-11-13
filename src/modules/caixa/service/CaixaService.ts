@@ -2,6 +2,7 @@ import { Prisma } from "../../../../generated/prisma/client.js"
 import { NotFoundError, TurnoJaAbertoError } from "@/shared/errors"
 import type { AbrirTurnoDTO, FecharTurnoDTO, TurnoComRelacoes } from "../dto/caixa.dto"
 import type { ICaixaRepository } from "../repository/ICaixaRepository"
+import type { NotificacaoService } from "@/modules/notificacao/service/NotificacaoService"
 
 /**
  * RF06.1/RF06.2 — issue #54.
@@ -15,7 +16,11 @@ import type { ICaixaRepository } from "../repository/ICaixaRepository"
  * O turno é por LOJA, não por pessoa: representa "o caixa da loja está aberto".
  */
 export class CaixaService {
-  constructor(private caixaRepository: ICaixaRepository) {}
+  constructor(
+    private caixaRepository: ICaixaRepository,
+    /** Sininho do painel (diferença no fechamento). Opcional: só as rotas de produção injetam. */
+    private notificacaoService?: NotificacaoService
+  ) {}
 
   /** RF06.1 */
   async abrir(
@@ -69,11 +74,16 @@ export class CaixaService {
       )
     }
 
-    return this.caixaRepository.fechar({
+    const fechado = await this.caixaRepository.fechar({
       id: turno.id,
       fechado_por_id: usuarioId,
       valor_fechamento: data.valor_fechamento,
     })
+
+    // Sobra/falta na gaveta vira aviso. Depois do fechamento e sem nunca lançar.
+    await this.notificacaoService?.aposFechamentoCaixa(fechado)
+
+    return fechado
   }
 
   /**

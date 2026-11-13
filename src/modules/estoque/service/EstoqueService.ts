@@ -3,11 +3,14 @@ import { ForbiddenError, NotFoundError } from "@/shared/errors"
 import type { IProdutoRepository } from "@/modules/produto/repository/IProdutoRepository"
 import type { CreateMovimentacaoDTO, ListMovimentacoesQuery } from "../dto/estoque.dto"
 import type { IEstoqueRepository } from "../repository/IEstoqueRepository"
+import type { NotificacaoService } from "@/modules/notificacao/service/NotificacaoService"
 
 export class EstoqueService {
   constructor(
     private estoqueRepository: IEstoqueRepository,
-    private produtoRepository: IProdutoRepository
+    private produtoRepository: IProdutoRepository,
+    /** Sininho do painel. Opcional: só as rotas de produção injetam. */
+    private notificacaoService?: NotificacaoService
   ) {}
 
   /** Mesma regra dos módulos Produto/Categoria: Caixa é estrito ao PDV. */
@@ -42,7 +45,7 @@ export class EstoqueService {
       throw new NotFoundError("Produto não encontrado.", "PRODUTO_NAO_ENCONTRADO")
     }
 
-    return this.estoqueRepository.registrarMovimentacao({
+    const movimentacao = await this.estoqueRepository.registrarMovimentacao({
       estabelecimento_id: estabelecimentoId,
       produto_id: data.produto_id,
       usuario_id: usuarioId,
@@ -51,6 +54,15 @@ export class EstoqueService {
       motivo: data.motivo,
       observacao: data.observacao,
     })
+
+    // Saída manual (perda, descarte...) também pode cruzar o mínimo. Nunca lança.
+    if (data.tipo === "SAIDA") {
+      await this.notificacaoService?.aposSaidaDeEstoque(estabelecimentoId, [
+        { produto_id: data.produto_id, quantidade: data.quantidade },
+      ])
+    }
+
+    return movimentacao
   }
 
   /** RF15.4 */

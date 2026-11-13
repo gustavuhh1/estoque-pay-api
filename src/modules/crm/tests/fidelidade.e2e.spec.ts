@@ -281,13 +281,13 @@ describe("CRM - Histórico, Inteligência e Fidelidade E2E (#58)", () => {
       expect(lista.json()).toHaveLength(1)
     })
 
-    it("o cupom aparece como RESGATADO depois do pagamento", async () => {
-      const { headers, produto } = await cenario()
+    it("o cupom individual aparece como RESGATADO depois do pagamento", async () => {
+      const { headers, produto, cliente } = await cenario()
       await app.inject({
         method: "POST",
         url: "/crm/cupons",
         headers,
-        payload: { codigo: "USADO", valor_desconto: 5 },
+        payload: { cliente_id: cliente.id, codigo: "USADO", valor_desconto: 5 },
       })
       await app.inject({
         method: "POST",
@@ -296,14 +296,67 @@ describe("CRM - Histórico, Inteligência e Fidelidade E2E (#58)", () => {
         payload: {
           itens: [{ produto_id: produto.id, quantidade: 1 }],
           metodo_pagamento: "DEBITO",
+          cliente_id: cliente.id,
           cupom_codigo: "USADO",
         },
       })
 
       const lista = await app.inject({ method: "GET", url: "/crm/cupons", headers })
 
-      expect(lista.json()[0].status).toBe("RESGATADO")
+      expect(lista.json()[0]).toMatchObject({ status: "RESGATADO", usos: 1, desconto_total: 5, cliente_nome: "Maria" })
       expect(lista.json()[0].venda_id).toBeTruthy()
+    })
+
+    it("cupom global em %: 409 sem cliente; com cliente aplica, lista o uso e desativa", async () => {
+      const { headers, produto, cliente } = await cenario()
+      const criado = await app.inject({
+        method: "POST",
+        url: "/crm/cupons",
+        headers,
+        payload: { codigo: "PROMO-20", tipo_desconto: "PERCENTUAL", valor_desconto: 20 },
+      })
+      expect(criado.statusCode).toBe(201)
+      const cupomId = criado.json().id
+
+      const pagar = (extra: Record<string, unknown>) =>
+        app.inject({
+          method: "POST",
+          url: "/pagamento",
+          headers,
+          payload: { itens: [{ produto_id: produto.id, quantidade: 2 }], metodo_pagamento: "DEBITO", cupom_codigo: "PROMO-20", ...extra },
+        })
+
+      const semCliente = await pagar({})
+      expect(semCliente.statusCode).toBe(409)
+      expect(semCliente.json().code).toBe("CUPOM_EXIGE_CLIENTE")
+
+      const comCliente = await pagar({ cliente_id: cliente.id })
+      expect(comCliente.statusCode).toBe(201)
+      expect(comCliente.json()).toMatchObject({ subtotal: 50, desconto: 10, total_venda: 40 })
+
+      const repetido = await pagar({ cliente_id: cliente.id })
+      expect(repetido.json().code).toBe("CUPOM_JA_USADO_PELO_CLIENTE")
+
+      const usos = await app.inject({ method: "GET", url: `/crm/cupons/${cupomId}/usos`, headers })
+      expect(usos.statusCode).toBe(200)
+      expect(usos.json()).toHaveLength(1)
+      expect(usos.json()[0]).toMatchObject({ cliente_nome: "Maria", desconto: 10 })
+      expect(usos.json()[0].cpf).toMatch(/^\*\*\*\.\d{3}\.\d{3}-\*\*$/)
+
+      const desativado = await app.inject({ method: "PATCH", url: `/crm/cupons/${cupomId}/desativar`, headers })
+      expect(desativado.statusCode).toBe(200)
+      expect(desativado.json()).toMatchObject({ status: "DESATIVADO", usos: 1 })
+    })
+
+    it("400 — porcentagem acima de 100%", async () => {
+      const { headers } = await cenario()
+      const response = await app.inject({
+        method: "POST",
+        url: "/crm/cupons",
+        headers,
+        payload: { tipo_desconto: "PERCENTUAL", valor_desconto: 150 },
+      })
+      expect(response.statusCode).toBe(400)
     })
 
     it("403 — CASHIER não emite cupom", async () => {

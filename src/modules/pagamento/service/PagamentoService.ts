@@ -19,6 +19,7 @@ import type {
 } from "../gateway/IPagamentoGateway"
 import { PIX_EXPIRA_EM_SEGUNDOS, TAXA_PIX_REAIS } from "../taxa-pix"
 import type { NfceService } from "@/modules/nfce/service/NfceService"
+import type { NotificacaoService } from "@/modules/notificacao/service/NotificacaoService"
 
 export interface PagamentoRegistrado {
   venda: VendaComItens
@@ -73,7 +74,9 @@ export class PagamentoService {
      * NFC-e simulada (D3). Opcional porque a venda funciona sem ela: só as rotas de
      * produção a injetam, e os testes de venda não precisam.
      */
-    private nfceService?: NfceService
+    private nfceService?: NfceService,
+    /** Sininho do painel (estoque baixo, Pix). Opcional pelo mesmo motivo da NFC-e. */
+    private notificacaoService?: NotificacaoService
   ) {}
 
   async registrarPagamentoManual(
@@ -97,7 +100,7 @@ export class PagamentoService {
       cliente_id: data.cliente_id,
       metodo_pagamento: data.metodo_pagamento,
       total_venda: total,
-      cupom_id: cupom?.id,
+      cupom: cupom && { id: cupom.cupom.id, individual: cupom.cupom.cliente_id !== null, cliente_id: cupom.cliente_id, cpf: cupom.cpf, desconto },
       itens: carrinho.itens.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -109,12 +112,14 @@ export class PagamentoService {
     // D3: venda paga -> NFC-e simulada, se a loja tem o Switch ligado. Fora da
     // transação da venda e sem nunca lançar: a nota não pode desfazer a venda.
     await this.nfceService?.emitirAposPagamento(venda.id)
+    // Estoque que cruzou o mínimo com esta venda. Nunca lança (ver NotificacaoService).
+    await this.notificacaoService?.aposVendaPaga(venda)
 
     return {
       venda,
       subtotal: carrinho.total,
       desconto,
-      cupom_codigo: cupom?.codigo ?? null,
+      cupom_codigo: cupom?.cupom.codigo ?? null,
       valor_pago: data.valor_pago ?? null,
       troco,
     }
@@ -165,7 +170,7 @@ export class PagamentoService {
       total_venda: total,
       taxa_split: TAXA_PIX_REAIS,
       abacatepay_payment_id: cobranca.payment_id,
-      cupom_id: cupom?.id,
+      cupom: cupom && { id: cupom.cupom.id, individual: cupom.cupom.cliente_id !== null, cliente_id: cupom.cliente_id, cpf: cupom.cpf, desconto },
       itens: carrinho.itens.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -178,7 +183,7 @@ export class PagamentoService {
       venda,
       subtotal: carrinho.total,
       desconto,
-      cupom_codigo: cupom?.codigo ?? null,
+      cupom_codigo: cupom?.cupom.codigo ?? null,
       taxa_pix: TAXA_PIX_REAIS,
       total_cobrado: totalCobrado,
       cobranca,
@@ -267,6 +272,7 @@ export class PagamentoService {
       // webhook e polling repetido caem aqui com `consolidada: false`.
       if (consolidada) {
         await this.nfceService?.emitirAposPagamento(venda.id)
+        await this.notificacaoService?.aposPixConfirmado(atualizada)
       }
 
       return { venda: atualizada, status, consolidada }
@@ -330,7 +336,7 @@ export class PagamentoService {
         )
       : null
 
-    const { total, desconto } = this.aplicarDesconto(carrinho.total, cupom)
+    const { total, desconto } = this.aplicarDesconto(carrinho.total, cupom?.cupom ?? null)
 
     return { turno, carrinho, cupom, total, desconto }
   }
@@ -349,7 +355,12 @@ export class PagamentoService {
     }
 
     const bruto = new Prisma.Decimal(subtotal.toString())
-    const desconto = Prisma.Decimal.min(cupom.valor_desconto, bruto)
+    // PERCENTUAL: a porcentagem sobre o subtotal dos itens, arredondada ao centavo.
+    const nominal =
+      cupom.tipo_desconto === "PERCENTUAL"
+        ? bruto.mul(cupom.valor_desconto).div(100).toDecimalPlaces(2)
+        : new Prisma.Decimal(cupom.valor_desconto)
+    const desconto = Prisma.Decimal.min(nominal, bruto)
 
     return { total: Number(bruto.sub(desconto)), desconto: Number(desconto) }
   }

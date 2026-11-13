@@ -12,6 +12,7 @@ export interface CreateProdutoParams {
   quantidade_minima: number
   ncm?: string | undefined
   cfop?: string | undefined
+  imagem_url?: string | null | undefined
   ativo: boolean // já calculado pelo Service (RN09.1) antes de chegar aqui
   /** Quem cadastrou: responsável pela entrada do estoque inicial no histórico (RN05). */
   usuario_id: string
@@ -27,6 +28,7 @@ export interface UpdateProdutoParams {
   quantidade_minima?: number | undefined
   ncm?: string | null | undefined
   cfop?: string | null | undefined
+  imagem_url?: string | null | undefined
   ativo?: boolean | undefined
 }
 

@@ -26,4 +26,13 @@ export class ConvitePrismaRepository implements IConviteRepository {
       where: { estabelecimentoId, aceitoEm: null },
     })
   }
+
+  async findPendenteByIdAndEstabelecimento(id: string, estabelecimentoId: string) {
+    return this.prisma.conviteFuncionario.findFirst({ where: { id, estabelecimentoId, aceitoEm: null } })
+  }
+
+  async delete(id: string) {
+    // deleteMany: se outra requisição já apagou o convite, não vira 500 (P2025); o pedido de cancelar fica atendido.
+    await this.prisma.conviteFuncionario.deleteMany({ where: { id, aceitoEm: null } })
+  }
 }
