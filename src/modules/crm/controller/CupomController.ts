@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify"
 import { UnauthorizedError } from "@/shared/errors"
-import { toCupomResponse, type CreateCupomDTO, type ListCuponsQuery } from "../dto/cupom.dto"
+import { mascararCpf, toCupomResponse, type CreateCupomDTO, type CupomIdParams, type ListCuponsQuery } from "../dto/cupom.dto"
 import { CupomService } from "../service/CupomService"
 
 export class CupomController {
@@ -39,5 +39,40 @@ export class CupomController {
     )
 
     return reply.status(200).send(cupons.map(toCupomResponse))
+  }
+
+  async desativar(request: FastifyRequest<{ Params: CupomIdParams }>, reply: FastifyReply) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const cupom = await this.cupomService.desativar(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.membro.role
+    )
+
+    return reply.status(200).send(toCupomResponse(cupom))
+  }
+
+  async usos(request: FastifyRequest<{ Params: CupomIdParams }>, reply: FastifyReply) {
+    if (!request.membro) {
+      throw new UnauthorizedError("Autenticação necessária.")
+    }
+
+    const usos = await this.cupomService.usos(
+      request.params.id,
+      request.membro.estabelecimentoId,
+      request.membro.role
+    )
+
+    return reply.status(200).send(
+      usos.map(({ cliente, ...uso }) => ({
+        ...uso,
+        cpf: mascararCpf(uso.cpf),
+        desconto: Number(uso.desconto),
+        cliente_nome: cliente?.nome ?? null,
+      }))
+    )
   }
 }

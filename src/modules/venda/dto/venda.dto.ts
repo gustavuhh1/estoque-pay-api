@@ -41,6 +41,7 @@ export const produtoBuscaResponseSchema = z.object({
   tipo_medida: z.enum(["UNIDADE", "FRACIONADO_KG"]),
   preco_venda: z.number(),
   quantidade_atual: z.number(),
+  imagem_url: z.string().nullish(),
 })
 export const listProdutoBuscaResponseSchema = z.array(produtoBuscaResponseSchema)
 
@@ -172,5 +173,6 @@ export function toProdutoBuscaResponse(produto: Produto) {
     tipo_medida: produto.tipo_medida,
     preco_venda: Number(produto.preco_venda),
     quantidade_atual: Number(produto.quantidade_atual),
+    imagem_url: produto.imagem_url,
   }
 }

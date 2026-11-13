@@ -23,7 +23,20 @@ export interface RegistrarVendaPagaParams {
    * mesma transação da venda — cupom consumido sem venda, ou venda com
    * desconto sem o cupom baixado, nunca ficam no banco.
    */
-  cupom_id?: string | undefined
+  cupom?: CupomDaVenda | null | undefined
+}
+
+/**
+ * Uso de cupom gravado junto da venda. `individual` = cupom nominal (uso único,
+ * baixa `resgatado_em`); global = 1 uso por CPF, travado pelo unique de cupom_usos.
+ */
+export interface CupomDaVenda {
+  id: string
+  individual: boolean
+  cliente_id: string
+  cpf: string
+  /** Quanto o cupom abateu, em R$. */
+  desconto: number
 }
 
 /**

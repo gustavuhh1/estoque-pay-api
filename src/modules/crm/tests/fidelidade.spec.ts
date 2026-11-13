@@ -6,8 +6,11 @@ import { prisma } from "@/lib/prisma"
 import {
   CupomCodigoAlreadyInUseError,
   CupomDeOutroClienteError,
+  CupomDesativadoError,
+  CupomExigeClienteError,
   CupomExpiradoError,
   CupomJaResgatadoError,
+  CupomJaUsadoPeloClienteError,
   EstoqueInsuficienteError,
   ForbiddenError,
   NotFoundError,
@@ -392,13 +395,14 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
     })
 
     it("o desconto nunca deixa o total negativo", async () => {
-      const { loja, usuario } = await cenario()
+      const { loja, usuario, cliente } = await cenario()
       const produto = await criarProduto(loja.id, { preco_venda: 8 })
       await cupomService.create(loja.id, "OWNER", { codigo: "GRANDE", valor_desconto: 20 })
 
       const resultado = await pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
         itens: [{ produto_id: produto.id, quantidade: 1 }],
         metodo_pagamento: "DEBITO",
+        cliente_id: cliente.id,
         cupom_codigo: "GRANDE",
       })
 
@@ -406,28 +410,100 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
       expect(Number(resultado.venda.total_venda)).toBe(0)
     })
 
-    it("cupom genérico vale em venda sem cliente", async () => {
+    it("cupom em porcentagem: desconto sobre o subtotal, arredondado ao centavo", async () => {
+      const { loja, usuario, cliente } = await cenario()
+      const produto = await criarProduto(loja.id, { preco_venda: 33.33 })
+      await cupomService.create(loja.id, "OWNER", {
+        codigo: "DEZ-PORCENTO",
+        tipo_desconto: "PERCENTUAL",
+        valor_desconto: 10,
+      })
+
+      const resultado = await pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
+        itens: [{ produto_id: produto.id, quantidade: 3 }],
+        metodo_pagamento: "DEBITO",
+        cliente_id: cliente.id,
+        cupom_codigo: "DEZ-PORCENTO",
+      })
+
+      expect(resultado.subtotal).toBe(99.99)
+      expect(resultado.desconto).toBe(10)
+      expect(Number(resultado.venda.total_venda)).toBe(89.99)
+      const uso = await prisma.cupomUso.findUniqueOrThrow({ where: { venda_id: resultado.venda.id } })
+      expect(Number(uso.desconto)).toBe(10)
+    })
+
+    it("cupom global exige cliente identificado (CPF)", async () => {
       const { loja, usuario } = await cenario()
       const produto = await criarProduto(loja.id, { preco_venda: 30 })
       await cupomService.create(loja.id, "OWNER", { codigo: "LOJA-5", valor_desconto: 5 })
 
-      const resultado = await pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
-        itens: [{ produto_id: produto.id, quantidade: 1 }],
-        metodo_pagamento: "CREDITO",
-        cupom_codigo: "LOJA-5",
-      })
-
-      expect(Number(resultado.venda.total_venda)).toBe(25)
+      await expect(
+        pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
+          itens: [{ produto_id: produto.id, quantidade: 1 }],
+          metodo_pagamento: "CREDITO",
+          cupom_codigo: "LOJA-5",
+        })
+      ).rejects.toBeInstanceOf(CupomExigeClienteError)
     })
 
-    it("cupom já resgatado é recusado", async () => {
-      const { loja, usuario } = await cenario()
+    it("cupom global: cada CPF usa uma vez, e outro CPF ainda pode usar", async () => {
+      const { loja, usuario, cliente } = await cenario()
+      const outroCliente = await criarCliente(loja.id, OUTRO_CPF_VALIDO)
+      const produto = await criarProduto(loja.id, { preco_venda: 30 })
+      const cupom = await cupomService.create(loja.id, "OWNER", { codigo: "LOJA-5", valor_desconto: 5 })
+      const pagar = (clienteId: string) =>
+        pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
+          itens: [{ produto_id: produto.id, quantidade: 1 }],
+          metodo_pagamento: "CREDITO",
+          cliente_id: clienteId,
+          cupom_codigo: "LOJA-5",
+        })
+
+      await pagar(cliente.id)
+      await expect(pagar(cliente.id)).rejects.toBeInstanceOf(CupomJaUsadoPeloClienteError)
+      await expect(pagar(outroCliente.id)).resolves.toBeTruthy()
+
+      // O cupom global não é "baixado": continua disponível, com os dois usos registrados.
+      const [listado] = await cupomService.list(loja.id, {})
+      expect(listado?.resgatado_em).toBeNull()
+      expect(listado?.usos).toHaveLength(2)
+      expect(await cupomService.usos(cupom.id, loja.id, "OWNER")).toHaveLength(2)
+    })
+
+    it("cupom desativado é recusado", async () => {
+      const { loja, usuario, cliente } = await cenario()
       const produto = await criarProduto(loja.id)
-      await cupomService.create(loja.id, "OWNER", { codigo: "UNICO", valor_desconto: 5 })
+      const cupom = await cupomService.create(loja.id, "OWNER", { codigo: "ENCERRADO", valor_desconto: 5 })
+      await cupomService.desativar(cupom.id, loja.id, "MANAGER")
+
+      await expect(
+        pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
+          itens: [{ produto_id: produto.id, quantidade: 1 }],
+          metodo_pagamento: "DEBITO",
+          cliente_id: cliente.id,
+          cupom_codigo: "ENCERRADO",
+        })
+      ).rejects.toBeInstanceOf(CupomDesativadoError)
+    })
+
+    it("CASHIER não desativa cupom nem vê os usos", async () => {
+      const { loja } = await cenario()
+      const cupom = await cupomService.create(loja.id, "OWNER", { valor_desconto: 5 })
+
+      await expect(cupomService.desativar(cupom.id, loja.id, "CASHIER")).rejects.toBeInstanceOf(ForbiddenError)
+      await expect(cupomService.usos(cupom.id, loja.id, "CASHIER")).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it("cupom individual já resgatado é recusado", async () => {
+      const { loja, usuario, cliente } = await cenario()
+      const produto = await criarProduto(loja.id)
+      await cupomService.create(loja.id, "OWNER", { cliente_id: cliente.id, codigo: "UNICO", valor_desconto: 5 })
       const pagar = () =>
         pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
           itens: [{ produto_id: produto.id, quantidade: 1 }],
           metodo_pagamento: "DEBITO",
+          cliente_id: cliente.id,
           cupom_codigo: "UNICO",
         })
 
@@ -495,9 +571,10 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
     })
 
     it("RNF01: se a baixa de estoque falha, o cupom NÃO fica resgatado", async () => {
-      const { loja, usuario } = await cenario()
+      const { loja, usuario, cliente } = await cenario()
       const produto = await criarProduto(loja.id, { quantidade_atual: 1 })
       const cupom = await cupomService.create(loja.id, "OWNER", {
+        cliente_id: cliente.id,
         codigo: "ROLLBACK",
         valor_desconto: 5,
       })
@@ -506,6 +583,7 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
         pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
           itens: [{ produto_id: produto.id, quantidade: 5 }],
           metodo_pagamento: "DEBITO",
+          cliente_id: cliente.id,
           cupom_codigo: "ROLLBACK",
         })
       ).rejects.toBeInstanceOf(EstoqueInsuficienteError)
@@ -513,16 +591,18 @@ describe("CRM — Histórico, Inteligência e Fidelidade (#58)", () => {
       const intacto = await prisma.cupom.findUniqueOrThrow({ where: { id: cupom.id } })
       expect(intacto.resgatado_em).toBeNull()
       expect(intacto.venda_id).toBeNull()
+      expect(await prisma.cupomUso.count()).toBe(0)
     })
 
     it("dois resgates simultâneos do mesmo cupom: só um desconto é concedido", async () => {
-      const { loja, usuario } = await cenario()
+      const { loja, usuario, cliente } = await cenario()
       const produto = await criarProduto(loja.id)
-      await cupomService.create(loja.id, "OWNER", { codigo: "CORRIDA", valor_desconto: 5 })
+      await cupomService.create(loja.id, "OWNER", { cliente_id: cliente.id, codigo: "CORRIDA", valor_desconto: 5 })
       const pagar = () =>
         pagamentoService.registrarPagamentoManual(loja.id, usuario.id, {
           itens: [{ produto_id: produto.id, quantidade: 1 }],
           metodo_pagamento: "DEBITO",
+          cliente_id: cliente.id,
           cupom_codigo: "CORRIDA",
         })
 

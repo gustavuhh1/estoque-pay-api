@@ -100,7 +100,7 @@ export class PagamentoService {
       cliente_id: data.cliente_id,
       metodo_pagamento: data.metodo_pagamento,
       total_venda: total,
-      cupom_id: cupom?.id,
+      cupom: cupom && { id: cupom.cupom.id, individual: cupom.cupom.cliente_id !== null, cliente_id: cupom.cliente_id, cpf: cupom.cpf, desconto },
       itens: carrinho.itens.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -119,7 +119,7 @@ export class PagamentoService {
       venda,
       subtotal: carrinho.total,
       desconto,
-      cupom_codigo: cupom?.codigo ?? null,
+      cupom_codigo: cupom?.cupom.codigo ?? null,
       valor_pago: data.valor_pago ?? null,
       troco,
     }
@@ -170,7 +170,7 @@ export class PagamentoService {
       total_venda: total,
       taxa_split: TAXA_PIX_REAIS,
       abacatepay_payment_id: cobranca.payment_id,
-      cupom_id: cupom?.id,
+      cupom: cupom && { id: cupom.cupom.id, individual: cupom.cupom.cliente_id !== null, cliente_id: cupom.cliente_id, cpf: cupom.cpf, desconto },
       itens: carrinho.itens.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -183,7 +183,7 @@ export class PagamentoService {
       venda,
       subtotal: carrinho.total,
       desconto,
-      cupom_codigo: cupom?.codigo ?? null,
+      cupom_codigo: cupom?.cupom.codigo ?? null,
       taxa_pix: TAXA_PIX_REAIS,
       total_cobrado: totalCobrado,
       cobranca,
@@ -336,7 +336,7 @@ export class PagamentoService {
         )
       : null
 
-    const { total, desconto } = this.aplicarDesconto(carrinho.total, cupom)
+    const { total, desconto } = this.aplicarDesconto(carrinho.total, cupom?.cupom ?? null)
 
     return { turno, carrinho, cupom, total, desconto }
   }
@@ -355,7 +355,12 @@ export class PagamentoService {
     }
 
     const bruto = new Prisma.Decimal(subtotal.toString())
-    const desconto = Prisma.Decimal.min(cupom.valor_desconto, bruto)
+    // PERCENTUAL: a porcentagem sobre o subtotal dos itens, arredondada ao centavo.
+    const nominal =
+      cupom.tipo_desconto === "PERCENTUAL"
+        ? bruto.mul(cupom.valor_desconto).div(100).toDecimalPlaces(2)
+        : new Prisma.Decimal(cupom.valor_desconto)
+    const desconto = Prisma.Decimal.min(nominal, bruto)
 
     return { total: Number(bruto.sub(desconto)), desconto: Number(desconto) }
   }
